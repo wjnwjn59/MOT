@@ -1,0 +1,6 @@
+__pycache__
+__MACOSX
+.DS_Store
+
+*weights
+*.pt

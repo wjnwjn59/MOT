@@ -1,0 +1,16 @@
+numpy==2.2.0
+pillow==11.3.0
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch
+torchvision
+transformers==4.48.2
+datasets==2.18.0
+bitsandbytes==0.44.1
+accelerate==1.3.0
+opencv-python==4.11.0.86
+
+
+
+
+
+
