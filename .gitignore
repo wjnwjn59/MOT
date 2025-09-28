@@ -4,3 +4,5 @@ __MACOSX
 
 *weights
 *.pt
+unsloth_compiled_cache
+data/annotations
