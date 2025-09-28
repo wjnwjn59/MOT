@@ -38,7 +38,6 @@ def read_groundtruth_txt(fp: Path) -> List[Tuple[float, float, float, float]]:
     return bboxes
 
 def parse_processed_frame_ids(seq_jsonl: Path) -> Set[int]:
-    """Read existing per-frame lines from .jsonl and return the set of processed frame IDs (1-based)."""
     done = set()
     if not seq_jsonl.exists():
         return done
@@ -49,18 +48,15 @@ def parse_processed_frame_ids(seq_jsonl: Path) -> Set[int]:
                 continue
             try:
                 obj = json.loads(line)
-                # accept both "frame_id" at top-level or within "frame"
                 if "frame_id" in obj:
                     done.add(int(obj["frame_id"]))
                 elif "frame" in obj and "frame_id" in obj["frame"]:
                     done.add(int(obj["frame"]["frame_id"]))
             except Exception:
-                # ignore malformed lines
                 pass
     return done
 
 def ensure_template_crop(template_img_path: Path, template_bbox, out_dir: Path) -> Path:
-    """Create (or reuse) template crop under out_dir/template_crop.jpg and return its path."""
     out_dir.mkdir(parents=True, exist_ok=True)
     crop_path = out_dir / "template_crop.jpg"
     if crop_path.exists():
@@ -77,10 +73,6 @@ def process_sequence_streaming(
     seq_out_dir: Path,
     meta: Dict,
 ) -> None:
-    """
-    Stream processing: for each frame, compute labels and append one JSON line
-    to <seq_out_dir>/<seq_name>.jsonl immediately.
-    """
     frames = sorted([p for p in seq_dir.glob('*.jpg')])
     gt_file = seq_dir / 'groundtruth.txt'
     if not gt_file.exists():
@@ -91,15 +83,12 @@ def process_sequence_streaming(
     seq_out_dir.mkdir(parents=True, exist_ok=True)
     seq_jsonl = seq_out_dir / f"{seq_dir.name}.jsonl"
 
-    # Template info
     template_img = frames[0]
     template_bbox = gts[0]
     template_crop_path = ensure_template_crop(template_img, template_bbox, seq_out_dir)
 
-    # Determine already-processed frame IDs (1-based)
     processed_ids = parse_processed_frame_ids(seq_jsonl)
 
-    # tqdm bar for frames
     iterable = list(enumerate(zip(frames, gts), start=1))
     pbar = tqdm(iterable, desc=f"{seq_dir.name}", unit="frame")
     for frame_id, (frame_path, bbox) in pbar:
@@ -107,47 +96,49 @@ def process_sequence_streaming(
             pbar.set_postfix_str(f"skip {frame_id}")
             continue
 
-        # Deterministic labels
         det = analyze_pair(template_img, frame_path, template_bbox, bbox)
-        # VLM labels
         vlm_flags = vlm.classify(str(template_crop_path), str(frame_path), bbox)
 
-        # Build a single-line JSON record for this frame
+        # Build per-class combined (flag + confidence)
+        def pack(name: str):
+            return {
+                "flag": int(vlm_flags.get(name, 0)),
+                "conf": float(vlm_flags.get("vlm_scores", {}).get(name, 0.0)),
+            }
+
+        vlm_response = {
+            "motion_blur": pack("motion_blur"),
+            "illu_change": pack("illu_change"),
+            "variance_appear": pack("variance_appear"),
+            "partial_visibility": pack("partial_visibility"),
+            "background_clutter": pack("background_clutter"),
+            "occlusion": pack("occlusion"),
+            "raw_confidence": vlm_flags.get("raw_confidence", 0.0),
+        }
+
         record = {
-            # global meta (so each line is self-contained)
             "dataset_path": meta["dataset_path"],
             "processing_time": datetime.utcnow().isoformat(),
             "model_name": meta["model_name"],
             "classes": meta["classes"],
-            # sequence context
             "sequence_name": seq_dir.name,
             "total_frames": len(frames),
             "template_bbox": list(map(float, template_bbox)),
-            # frame result
-            "frame_id": frame_id,  # 1-based
+            "frame_id": frame_id,
             "frame_file": frame_path.name,
             "cv_response": {
                 "scale_variation": det.scale_variation,
                 "low_res": det.low_res,
                 "low_contrast": det.low_contrast,
             },
-            "vlm_response": {
-                "motion_blur": vlm_flags.get("motion_blur", 0),
-                "illu_change": vlm_flags.get("illu_change", 0),
-                "variance_appear": vlm_flags.get("variance_appear", 0),
-                "partial_visibility": vlm_flags.get("partial_visibility", 0),
-                "background_clutter": vlm_flags.get("background_clutter", 0),
-                "occlusion": vlm_flags.get("occlusion", 0),
-            },
+            "vlm_response": vlm_response,
             "ground_truth_bbox": list(map(float, bbox)),
         }
 
-        # Append immediately
         with open(seq_jsonl, 'a') as f:
             f.write(json.dumps(record))
             f.write('\n')
 
-        # Update progress bar
         pbar.set_postfix_str(f"done {frame_id}")
 
 def main():
@@ -165,13 +156,10 @@ def main():
     sequences = [p for p in dataset_path.iterdir() if p.is_dir() and (p / 'groundtruth.txt').exists()]
     sequences.sort()
 
-    # Output root: <out-dir>/<split>_<timestamp>/
-    timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
     split_name = dataset_path.name
-    out_root = Path(args.out_dir) / f"{split_name}_{timestamp}"
+    out_root = Path(args.out_dir) / f"{split_name}_maritime_env_clf_annts"
     out_root.mkdir(parents=True, exist_ok=True)
 
-    # Sequence-level resume file (marks fully processed sequences)
     resume_path = Path(args.resume_file) if args.resume_file else (Path(args.out_dir) / f"{split_name}_processed.txt")
     processed_sequences: set[str] = set()
     if resume_path.exists():
@@ -182,7 +170,6 @@ def main():
 
     vlm = VLMAnalyzer(VLMConfig(model_name=args.model))
 
-    # Shared metadata per line
     meta = {
         "dataset_path": str(dataset_path),
         "model_name": args.model,
@@ -198,24 +185,20 @@ def main():
 
         seq_dir_out = out_root / seq.name
         seq_dir_out.mkdir(parents=True, exist_ok=True)
-        seq_jsonl = seq_dir_out / f"{seq.name}.jsonl"
 
-        # Process this sequence in streaming mode (per-frame appends)
         print(f"[{i}/{total}] Processing {seq.name} ...")
         try:
             process_sequence_streaming(seq, vlm, seq_dir_out, meta)
         except Exception as e:
             print(f"  !! error processing {seq.name}: {e}")
-            # don't mark as complete; you can resume later and it will skip frames already in the .jsonl
             continue
 
-        # If we got here without exceptions, mark the sequence complete
         with open(resume_path, 'a') as rf:
             rf.write(seq.name + '\n')
         print(f"  → sequence complete: {seq.name}")
 
-    print(f"All annotations (this run) saved under: {out_root}")
-    print(f"Resume file: {resume_path} (fully processed sequences listed)")
+    print(f"All annotations saved under: {out_root}")
+    print(f"Resume file: {resume_path}")
 
 if __name__ == '__main__':
     main()
