@@ -62,8 +62,17 @@ def ensure_template_crop(template_img_path: Path, template_bbox, out_dir: Path) 
     if crop_path.exists():
         return crop_path
     imgT = Image.open(template_img_path).convert('RGB')
-    x, y, w, h = [int(round(v)) for v in template_bbox]
-    cropT = imgT.crop((x, y, x + w, y + h))
+    W, H = imgT.size
+    x, y, w, h = [max(0, int(round(v))) for v in template_bbox]
+    x = min(x, W-1)
+    y = min(y, H-1)
+    w = min(w, W-x)
+    h = min(h, H-y)
+    if w <= 0 or h <= 0:
+        # Fallback to full image if bbox is invalid
+        cropT = imgT
+    else:
+        cropT = imgT.crop((x, y, x + w, y + h))
     cropT.save(crop_path)
     return crop_path
 
