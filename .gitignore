@@ -4,6 +4,12 @@ __MACOSX
 
 *weights
 *.pt
+data/
+
+tracking
+
+*weights
+*.pt
 unsloth_compiled_cache
 data/annotations
 
@@ -17,3 +23,5 @@ data
 
 *.log
 events.out.tfevents.*
+
+extracted_templates/

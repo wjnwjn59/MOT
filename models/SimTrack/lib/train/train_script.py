@@ -59,6 +59,8 @@ def run(settings):
         net = build_stark_lightning_x_trt(cfg, phase="train")
     elif settings.script_name == "simtrack":
         net = build_simtrack(cfg)
+        # net.load_state_dict(torch.load("/home/thinhnp/MOT/models/SimTrack/sim-vit-b-16.pth", map_location='cpu', weights_only=False), strict=True)
+        # net.load_state_dict(torch.load("/home/thinhnp/MOT/models/SimTrack/SimTrack_ep0050.pth.tar", map_location='cpu', weights_only=False)['net'], strict=True)
     else:
         raise ValueError("illegal script name")
 

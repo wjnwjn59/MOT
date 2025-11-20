@@ -1,0 +1,77 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug SimTrack Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tracking/test.py",
+            "args": [
+                "simtrack",
+                "baseline_got10k_only",
+                "--dataset", "got10k_test",
+                "--threads", "1"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "autoReload": {
+                "enable": true
+            }
+        },
+        {
+            "name": "Debug SimTrack Train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tracking/train.py",
+            "args": [
+                "--script", "simtrack",
+                "--config", "baseline_got10k_only",
+                "--save", ".",
+                "--mode", "single",
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "autoReload": {
+                "enable": true
+            }
+        },
+        {
+            "name": "Debug SimTrack CLI Train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/lib/train/run_training.py",
+            "args": [
+                "--script", "simtrack",
+                "--config", "baseline_got10k_only",
+                "--save_dir", ".",
+                "--use_lmdb", "0",
+                "--script_prv", "None",
+                "--config_prv", "baseline",
+                "--distill", "0",
+                "--script_teacher", "None",
+                "--config_teacher", "None"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "autoReload": {
+                "enable": true
+            }
+        }
+    ]
+}

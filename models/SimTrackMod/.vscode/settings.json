@@ -1,0 +1,23 @@
+{
+    "python.defaultInterpreterPath": "/opt/miniconda3/envs/thinh_simtrack/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}",
+        "${workspaceFolder}/lib",
+        "${workspaceFolder}/tracking"
+    ],
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.completeFunctionParens": true,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.git": true
+    },
+    "debug.openDebug": "openOnDebugBreak",
+    "debug.showBreakpointsInOverviewRuler": true,
+    "debug.inlineValues": "on",
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "${workspaceFolder}"
+    }
+}
