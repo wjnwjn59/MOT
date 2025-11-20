@@ -38,7 +38,7 @@ def prepare_results_for_framework(source_dir, temp_dir):
         
         # Find the result file (usually sequence_name_001.txt)
         result_files = [f for f in os.listdir(seq_path) 
-                       if f.endswith('.txt') and not f.endswith('_time.txt')]
+                       if f.endswith('_001.txt') and not f.endswith('_time.txt')]
         
         if result_files:
             # Take the first result file
@@ -63,7 +63,8 @@ def main():
     print("=" * 60)
     
     # Configuration
-    original_results_dir = "/home/thinhnp/MOT/models/SimTrack/output/test/tracking_results/simtrack/baseline_got10k_only/got10k"
+    # original_results_dir = "/home/thinhnp/MOT/models/SimTrack/output/test/tracking_results/simtrack/baseline_got10k_only/got10k"
+    original_results_dir = "/home/thinhnp/MOT/models/SimTrackMod/output/test/tracking_results/simtrack/predict/got10k"
     
     try:
         # Load dataset - try both val and test splits

@@ -7,7 +7,7 @@ def local_env_settings():
 
     settings.davis_dir = ''
     settings.got10k_lmdb_path = ''
-    settings.got10k_path = '../MVTD'
+    settings.got10k_path = '../../data/MVTD'
     settings.got_packed_results_path = ''
     settings.got_reports_path = ''
     settings.itb_path = ''
@@ -20,7 +20,7 @@ def local_env_settings():
     settings.prj_dir = '../SimTrack'
     settings.result_plot_path = '../SimTrack/output/test/result_plots'
     settings.results_path = '../SimTrack/output/test/tracking_results'    # Where to store tracking results
-    settings.save_dir = '../SimTrack/Weights'
+    settings.save_dir = '../SimTrack/'
     settings.segmentation_path = ''
     settings.tc128_path = ''
     settings.tn_packed_results_path = ''

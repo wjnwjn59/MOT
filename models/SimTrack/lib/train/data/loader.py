@@ -2,10 +2,25 @@ import torch
 import torch.utils.data.dataloader
 import importlib
 import collections
-from torch._six import string_classes#, int_classes
+import collections.abc
+import re
+# from torch._six import string_classes#, int_classes
 from lib.utils import TensorDict, TensorList
 int_classes = int
 
+string_classes = str
+
+# Create numpy_type_map for compatibility
+numpy_type_map = {
+    'float64': torch.DoubleTensor,
+    'float32': torch.FloatTensor,
+    'float16': torch.HalfTensor,
+    'int64': torch.LongTensor,
+    'int32': torch.IntTensor,
+    'int16': torch.ShortTensor,
+    'int8': torch.CharTensor,
+    'uint8': torch.ByteTensor,
+}
 
 def _check_use_shared_memory():
     if hasattr(torch.utils.data.dataloader, '_use_shared_memory'):
@@ -24,11 +39,9 @@ def ltr_collate(batch):
     if isinstance(batch[0], torch.Tensor):
         out = None
         if _check_use_shared_memory():
-            # If we're in a background process, concatenate directly into a
-            # shared memory tensor to avoid an extra copy
-            numel = sum([x.numel() for x in batch])
-            storage = batch[0].storage()._new_shared(numel)
-            out = batch[0].new(storage)
+            # Disable shared memory optimization to avoid shape mismatch issues
+            # This is safer and the performance impact is minimal for most cases
+            out = None
         return torch.stack(batch, 0, out=out)
         # if batch[0].dim() < 4:
         #     return torch.stack(batch, 0, out=out)
@@ -38,13 +51,13 @@ def ltr_collate(batch):
         elem = batch[0]
         if elem_type.__name__ == 'ndarray':
             # array of string classes and object
-            if torch.utils.data.dataloader.re.search('[SaUO]', elem.dtype.str) is not None:
+            if re.search('[SaUO]', elem.dtype.str) is not None:
                 raise TypeError(error_msg.format(elem.dtype))
 
             return torch.stack([torch.from_numpy(b) for b in batch], 0)
         if elem.shape == ():  # scalars
             py_type = float if elem.dtype.name.startswith('float') else int
-            return torch.utils.data.dataloader.numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
+            return numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
     elif isinstance(batch[0], int_classes):
         return torch.LongTensor(batch)
     elif isinstance(batch[0], float):
@@ -53,12 +66,12 @@ def ltr_collate(batch):
         return batch
     elif isinstance(batch[0], TensorDict):
         return TensorDict({key: ltr_collate([d[key] for d in batch]) for key in batch[0]})
-    elif isinstance(batch[0], collections.Mapping):
+    elif isinstance(batch[0], collections.abc.Mapping):
         return {key: ltr_collate([d[key] for d in batch]) for key in batch[0]}
     elif isinstance(batch[0], TensorList):
         transposed = zip(*batch)
         return TensorList([ltr_collate(samples) for samples in transposed])
-    elif isinstance(batch[0], collections.Sequence):
+    elif isinstance(batch[0], collections.abc.Sequence):
         transposed = zip(*batch)
         return [ltr_collate(samples) for samples in transposed]
     elif batch[0] is None:
@@ -75,11 +88,9 @@ def ltr_collate_stack1(batch):
     if isinstance(batch[0], torch.Tensor):
         out = None
         if _check_use_shared_memory():
-            # If we're in a background process, concatenate directly into a
-            # shared memory tensor to avoid an extra copy
-            numel = sum([x.numel() for x in batch])
-            storage = batch[0].storage()._new_shared(numel)
-            out = batch[0].new(storage)
+            # Disable shared memory optimization to avoid shape mismatch issues
+            # This is safer and the performance impact is minimal for most cases
+            out = None
         return torch.stack(batch, 1, out=out)
         # if batch[0].dim() < 4:
         #     return torch.stack(batch, 0, out=out)
@@ -89,13 +100,13 @@ def ltr_collate_stack1(batch):
         elem = batch[0]
         if elem_type.__name__ == 'ndarray':
             # array of string classes and object
-            if torch.utils.data.dataloader.re.search('[SaUO]', elem.dtype.str) is not None:
+            if re.search('[SaUO]', elem.dtype.str) is not None:
                 raise TypeError(error_msg.format(elem.dtype))
 
             return torch.stack([torch.from_numpy(b) for b in batch], 1)
         if elem.shape == ():  # scalars
             py_type = float if elem.dtype.name.startswith('float') else int
-            return torch.utils.data.dataloader.numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
+            return numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
     elif isinstance(batch[0], int_classes):
         return torch.LongTensor(batch)
     elif isinstance(batch[0], float):
@@ -104,12 +115,12 @@ def ltr_collate_stack1(batch):
         return batch
     elif isinstance(batch[0], TensorDict):
         return TensorDict({key: ltr_collate_stack1([d[key] for d in batch]) for key in batch[0]})
-    elif isinstance(batch[0], collections.Mapping):
+    elif isinstance(batch[0], collections.abc.Mapping):
         return {key: ltr_collate_stack1([d[key] for d in batch]) for key in batch[0]}
     elif isinstance(batch[0], TensorList):
         transposed = zip(*batch)
         return TensorList([ltr_collate_stack1(samples) for samples in transposed])
-    elif isinstance(batch[0], collections.Sequence):
+    elif isinstance(batch[0], collections.abc.Sequence):
         transposed = zip(*batch)
         return [ltr_collate_stack1(samples) for samples in transposed]
     elif batch[0] is None:
@@ -184,7 +195,7 @@ class LTRLoader(torch.utils.data.dataloader.DataLoader):
         super(LTRLoader, self).__init__(dataset, batch_size, shuffle, sampler, batch_sampler,
                  num_workers, collate_fn, pin_memory, drop_last,
                  timeout, worker_init_fn)
-
+        
         self.name = name
         self.training = training
         self.epoch_interval = epoch_interval

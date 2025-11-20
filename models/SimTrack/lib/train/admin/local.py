@@ -4,8 +4,10 @@ class EnvironmentSettings:
         self.tensorboard_dir = '../SimTrack/tensorboard'    # Directory for tensorboard files.
         self.pretrained_networks = '../SimTrack/pretrained_networks'
         self.lasot_dir = ''
-        self.got10k_dir = '../MVTD/train'
-        self.got10k_val_dir = '../MVTD/val'
+        # self.got10k_dir = 'sample/train'
+        self.got10k_dir = '/mnt/VLAI_data/MVTD/train'
+        # self.got10k_val_dir = '../MVTD/val'
+        self.got10k_val_dir = '/mnt/VLAI_data/MVTD/val'
         self.lasot_lmdb_dir = ''
         self.got10k_lmdb_dir = ''
         self.trackingnet_dir = ''

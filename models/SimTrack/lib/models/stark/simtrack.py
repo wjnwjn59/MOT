@@ -110,5 +110,5 @@ def build_simtrack(cfg):
         aux_loss=cfg.TRAIN.DEEP_SUPERVISION,
         head_type=cfg.MODEL.HEAD_TYPE
     )
-
+    
     return model

@@ -233,6 +233,60 @@ def load_pretrained_weights(model, weight_path, strict=False):
     return model
 
 
+def freeze_backbone(model):
+    """
+    Freeze all backbone parameters to prevent training
+    """
+    frozen_params = 0
+    total_params = 0
+    
+    # Freeze backbone
+    for name, param in model.backbone.named_parameters():
+        param.requires_grad = False
+        frozen_params += param.numel()
+        print(f"Frozen: {name}")
+    
+    # Freeze bottleneck (connection between backbone and head)
+    for name, param in model.bottleneck.named_parameters():
+        param.requires_grad = False
+        frozen_params += param.numel()
+        print(f"Frozen: bottleneck.{name}")
+    
+    # Count total parameters
+    for param in model.parameters():
+        total_params += param.numel()
+    
+    trainable_params = total_params - frozen_params
+    
+    print(f"\nFreeze Summary:")
+    print(f"  Total parameters: {total_params:,}")
+    print(f"  Frozen parameters: {frozen_params:,}")
+    print(f"  Trainable parameters: {trainable_params:,}")
+    print(f"  Frozen ratio: {frozen_params/total_params*100:.1f}%")
+    
+    return model
+
+
+def unfreeze_backbone(model):
+    """
+    Unfreeze all backbone parameters to allow training
+    """
+    unfrozen_params = 0
+    
+    # Unfreeze backbone
+    for name, param in model.backbone.named_parameters():
+        param.requires_grad = True
+        unfrozen_params += param.numel()
+        
+    # Unfreeze bottleneck
+    for name, param in model.bottleneck.named_parameters():
+        param.requires_grad = True
+        unfrozen_params += param.numel()
+    
+    print(f"Unfrozen {unfrozen_params:,} backbone parameters")
+    return model
+
+
 class DummyConfig:
     """Dummy config for testing"""
     def __init__(self):
