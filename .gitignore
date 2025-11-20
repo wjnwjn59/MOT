@@ -4,3 +4,24 @@ __MACOSX
 
 *weights
 *.pt
+data/
+
+tracking
+
+*weights
+*.pt
+unsloth_compiled_cache
+data/annotations
+
+*.pth
+*.pth.tar
+
+data
+*backup*
+
+*.txt
+
+*.log
+events.out.tfevents.*
+
+extracted_templates/
