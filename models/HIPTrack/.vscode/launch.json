@@ -1,0 +1,53 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "debugpy",
+            "request": "launch",
+            "name": "HIPTrack Training Cls",
+            // "program": "${workspaceFolder}/lib/train/run_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            // "python": "/home/thinhnp/MOT/models/HIPTrack/.venv/bin/python",
+            "module": "uv",
+            "args": [
+                "run",
+                "python",
+                "${workspaceFolder}/lib/train/run_training.py",
+                "--script",
+                "hiptrack",
+                "--config",
+                "hiptrack_cls",
+                "--save_dir",
+                "./output",
+                "--use_lmdb",
+                "0",
+                "--script_prv",
+                "None",
+                "--config_prv",
+                "baseline",
+                "--distill",
+                "0",
+                "--script_teacher",
+                "None",
+                "--config_teacher",
+                "None",
+                "--use_wandb",
+                "0"
+            ]
+        },
+        {
+            "type": "debugpy",
+            "request": "launch",
+            "name": "HIPTrack Testing",
+            "program": "${workspaceFolder}/tracking/test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${env:PYTHONPATH}"
+            }
+        }
+    ]
+}

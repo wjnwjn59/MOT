@@ -70,6 +70,8 @@ def run_training(script_name, config_name, cudnn_benchmark=True, local_rank=-1, 
         expr_module = importlib.import_module('lib.train.train_script_distill')
     else:
         expr_module = importlib.import_module('lib.train.train_script')
+    if config_name == "hiptrack_cls":
+        expr_module = importlib.import_module('lib.train.train_script_cls')
     expr_func = getattr(expr_module, 'run')
 
     expr_func(settings)

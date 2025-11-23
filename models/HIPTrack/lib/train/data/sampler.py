@@ -198,6 +198,10 @@ class TrackingSampler(torch.utils.data.Dataset):
                 H, W, _ = template_frames[0].shape
                 template_masks = template_anno['mask'] if 'mask' in template_anno else [torch.zeros((H, W))] * self.num_template_frames
                 search_masks = search_anno['mask'] if 'mask' in search_anno else [torch.zeros((H, W))] * self.num_search_frames
+                
+                # Add classification labels if available
+                cls_labels = search_anno.get('cls_labels', None)
+                
                 data = TensorDict({'template_images': template_frames,
                                    'template_anno': template_anno['bbox'],
                                    'template_masks': template_masks,
@@ -206,6 +210,10 @@ class TrackingSampler(torch.utils.data.Dataset):
                                    'search_masks': search_masks,
                                    'dataset': dataset.get_name(),
                                    'test_class': meta_obj_test.get('object_class_name')})
+                
+                # Add cls_labels to data if available
+                if cls_labels is not None:
+                    data['cls_labels'] = torch.tensor(cls_labels, dtype=torch.long)
                 # make data augmentation
                 data = self.processing(data)
 
@@ -308,7 +316,6 @@ class TrackingSampler(torch.utils.data.Dataset):
     def sample_seq_from_dataset(self, dataset, is_video_dataset):
 
         # Sample a sequence with enough visible frames
-        print(dataset,"############################################################3")
         enough_visible_frames = False
         while not enough_visible_frames:
             # Sample a sequence

@@ -25,3 +25,4 @@ data
 events.out.tfevents.*
 
 extracted_templates/
+*.mp4
