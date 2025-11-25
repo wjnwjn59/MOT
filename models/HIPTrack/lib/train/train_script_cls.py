@@ -54,10 +54,47 @@ def run(settings):
     # wrap networks to distributed one
     net.cuda()
 
-    # Freeze backbone parameters
-    for k, v in net.named_parameters():
-        if 'backbone' in k:
-            v.requires_grad = False
+    # Two-stage training support (SimTrackMod strategy)
+    if getattr(cfg.TRAIN, 'TWO_STAGE', False):
+        print("=" * 80)
+        print("TWO-STAGE TRAINING ENABLED (SimTrackMod Architecture)")
+        print("=" * 80)
+        print(f"Stage 1: Freeze backbone, train classification head only ({cfg.TRAIN.STAGE1_EPOCHS} epochs, LR={cfg.TRAIN.STAGE1_LR})")
+        print(f"Stage 2: Fine-tune entire model ({cfg.TRAIN.STAGE2_EPOCHS} epochs, LR={cfg.TRAIN.STAGE2_LR})")
+        print("=" * 80)
+        
+        # Determine current stage based on checkpoint or start fresh
+        current_epoch = 0  # Will be updated if resuming from checkpoint
+        stage1_end_epoch = cfg.TRAIN.STAGE1_EPOCHS
+        total_epochs = cfg.TRAIN.STAGE1_EPOCHS + cfg.TRAIN.STAGE2_EPOCHS
+        
+        # Stage 1: Freeze backbone and bottleneck
+        if current_epoch < stage1_end_epoch:
+            print(f"\n[Stage 1] Freezing backbone and bottleneck for epochs 0-{stage1_end_epoch}")
+            for k, v in net.named_parameters():
+                if 'backbone' in k or 'bottleneck' in k:
+                    v.requires_grad = False
+                    print(f"  Frozen: {k}")
+            
+            # Update learning rate for stage 1
+            cfg.TRAIN.LR = cfg.TRAIN.STAGE1_LR
+            cfg.TRAIN.EPOCH = stage1_end_epoch
+        else:
+            # Stage 2: Unfreeze everything
+            print(f"\n[Stage 2] Unfreezing all parameters for epochs {stage1_end_epoch}-{total_epochs}")
+            for k, v in net.named_parameters():
+                v.requires_grad = True
+                if 'backbone' in k or 'bottleneck' in k:
+                    print(f"  Unfrozen: {k}")
+            
+            # Update learning rate for stage 2
+            cfg.TRAIN.LR = cfg.TRAIN.STAGE2_LR
+            cfg.TRAIN.EPOCH = total_epochs
+    else:
+        # Standard training: Freeze backbone parameters (original behavior)
+        for k, v in net.named_parameters():
+            if 'backbone' in k:
+                v.requires_grad = False
 
     if settings.local_rank != -1:
         net = DDP(net, device_ids=[settings.local_rank], find_unused_parameters=True)

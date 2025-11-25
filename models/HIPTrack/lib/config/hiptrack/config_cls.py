@@ -13,12 +13,13 @@ cfg = edict(base_cfg.copy())
 cfg.MODEL.CLS_HEAD = edict()
 cfg.MODEL.CLS_HEAD.NUM_CLASSES = 10  # Number of classification classes (maritime tracking challenges)
 cfg.MODEL.CLS_HEAD.HIDDEN_DIM = 512  # Hidden dimension for classifier
-cfg.MODEL.CLS_HEAD.POOLING = 'avg'  # Pooling method: 'avg', 'max', 'attention'
-cfg.MODEL.CLS_HEAD.DROPOUT = 0.3  # Dropout rate
+cfg.MODEL.CLS_HEAD.DROPOUT = 0.1  # Dropout rate (SimTrackMod: 0.1)
 
-# MODEL - Add hidden dim if not exists
+# MODEL - Add hidden dim and bottleneck dim if not exists
 if not hasattr(cfg.MODEL, 'HIDDEN_DIM'):
-    cfg.MODEL.HIDDEN_DIM = 768  # For vit_base
+    cfg.MODEL.HIDDEN_DIM = 768  # For vit_base (CLS token dimension)
+if not hasattr(cfg.MODEL, 'BOTTLENECK_DIM'):
+    cfg.MODEL.BOTTLENECK_DIM = 256  # Bottleneck dimension for fusion layer
 
 # TRAINING - Classification
 cfg.TRAIN.CLS_WEIGHT = 1.0  # Weight for classification loss
@@ -28,9 +29,17 @@ cfg.TRAIN.CLS_FOCAL_GAMMA = 2.0  # Gamma for focal loss
 cfg.TRAIN.CLS_LABEL_SMOOTHING = 0.1  # Label smoothing factor
 cfg.TRAIN.FREEZE_CLS_EPOCH = -1  # Epoch to freeze classification branch (-1 = never)
 
+# TRAINING - Two-Stage Training (SimTrackMod strategy)
+cfg.TRAIN.TWO_STAGE = False  # Enable two-stage training
+cfg.TRAIN.STAGE1_EPOCHS = 30  # Stage 1: freeze backbone, train cls only
+cfg.TRAIN.STAGE1_LR = 1e-3  # Stage 1 learning rate (higher for cls head)
+cfg.TRAIN.STAGE2_EPOCHS = 20  # Stage 2: fine-tune entire model
+cfg.TRAIN.STAGE2_LR = 1e-5  # Stage 2 learning rate (lower for fine-tuning)
+cfg.TRAIN.FREEZE_BACKBONE_STAGE1 = True  # Freeze backbone in stage 1
+
 # DATA - Classification annotations
-cfg.DATA.TRAIN.CLS_ANN_DIR = "/home/thinhnp/MOT/data/train_maritime_env_clf_annts"  # Classification annotation directory
-cfg.DATA.VAL.CLS_ANN_DIR = "/home/thinhnp/MOT/data/train_maritime_env_clf_annts"  # Validation annotation directory
+cfg.DATA.TRAIN.CLS_ANN_DIR = "../../data/train_maritime_env_clf_annts"  # Classification annotation directory
+cfg.DATA.VAL.CLS_ANN_DIR = "../../data/train_maritime_env_clf_annts"  # Validation annotation directory
 
 
 def _edict2dict(dest_dict, src_edict):

@@ -75,7 +75,7 @@ class Got10kCls(BaseVideoDataset):
         self.class_list.sort()
         
         # Load classification annotations
-        self.cls_ann_dir = cls_ann_dir if cls_ann_dir is not None else "/home/thinhnp/MOT/data/train_maritime_env_clf_annts"
+        self.cls_ann_dir = cls_ann_dir
         self.cls_annotations = {}
         self._load_cls_annotations()
 

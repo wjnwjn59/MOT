@@ -31,7 +31,7 @@ class BaseBackbone(nn.Module):
         self.return_inter = False
         self.return_stage = [2, 5, 8, 11]
 
-        self.add_cls_token = False
+        self.add_cls_token = False  # Keep disabled for now - will extract CLS from final features
         self.add_sep_seg = False
 
     def finetune_track(self, cfg, patch_start_index=1):

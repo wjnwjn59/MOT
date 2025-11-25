@@ -225,7 +225,7 @@ def _create_vision_transformer(pretrained=False, **kwargs):
             model.load_pretrained(pretrained, prefix='')
         else:
             checkpoint = torch.load(pretrained, map_location="cpu")
-            missing_keys, unexpected_keys = model.load_state_dict(checkpoint["model"], strict=False)
+            missing_keys, unexpected_keys = model.load_state_dict(checkpoint["net"], strict=False)
             print('Load pretrained model from: ' + pretrained)
 
     return model

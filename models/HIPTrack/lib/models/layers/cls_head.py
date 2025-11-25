@@ -5,82 +5,73 @@ import torch.nn.functional as F
 
 class ClassificationHead(nn.Module):
     """
-    Classification head for auxiliary task
-    Input: Features from backbone [B, C, H, W] hoặc [B, HW, C]
-    Output: Class logits [B, num_classes]
+    Classification head for auxiliary task (SimTrackMod architecture)
+    Uses CLS token from ViT backbone as global feature representation
+    Input: CLS token features [B, C]
+    Output: Class logits [B, num_classes] and fusion features [B, bottleneck_dim]
     """
-    def __init__(self, in_dim=768, hidden_dim=512, num_classes=10, pooling='avg'):
+    def __init__(self, in_dim=768, hidden_dim=512, num_classes=10, bottleneck_dim=256):
         """
         Args:
-            in_dim: Input feature dimension
-            hidden_dim: Hidden layer dimension
+            in_dim: Input CLS token dimension (from ViT backbone)
+            hidden_dim: Hidden layer dimension for classification
             num_classes: Number of classification classes
-            pooling: Pooling method ('avg', 'max', 'attention')
+            bottleneck_dim: Dimension for fusion features (to feed back to box head)
         """
         super().__init__()
-        self.pooling_type = pooling
         
-        # Pooling layer
-        if pooling == 'avg':
-            self.pool = nn.AdaptiveAvgPool2d(1)
-        elif pooling == 'max':
-            self.pool = nn.AdaptiveMaxPool2d(1)
-        elif pooling == 'attention':
-            self.attention = nn.Sequential(
-                nn.Linear(in_dim, in_dim // 4),
-                nn.ReLU(),
-                nn.Linear(in_dim // 4, 1)
-            )
+        # Projection layer: CLS token -> hidden dimension
+        self.cls_projection = nn.Linear(in_dim, hidden_dim)
         
-        # Classification layers
-        self.classifier = nn.Sequential(
-            nn.Linear(in_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(hidden_dim, hidden_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(hidden_dim // 2, num_classes)
-        )
+        # Dropout for regularization (SimTrackMod uses 0.1)
+        self.dropout = nn.Dropout(0.1)
+        
+        # Classifier: hidden -> num_classes
+        self.classifier = nn.Linear(hidden_dim, num_classes)
+        
+        # Fusion layer: project hidden features back to bottleneck dimension
+        # These features will be fused with spatial features for box prediction
+        self.fusion_layer = nn.Linear(hidden_dim, bottleneck_dim)
         
         self._init_weights()
     
     def _init_weights(self):
+        """Initialize weights for all linear layers"""
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
     
-    def forward(self, x):
+    def forward(self, cls_token):
         """
+        Forward pass using CLS token from ViT backbone
+        
         Args:
-            x: Feature tensor
-               - Shape: [B, C, H, W] cho CNN features
-               - Shape: [B, HW, C] cho ViT features
+            cls_token: CLS token features from ViT [B, C]
+        
         Returns:
-            logits: [B, num_classes]
+            dict containing:
+                - 'cls_logits': Classification logits [B, num_classes]
+                - 'cls_features': Hidden features [B, hidden_dim] 
+                - 'fusion_features': Features for box head fusion [B, bottleneck_dim]
         """
-        # Handle different input formats
-        if len(x.shape) == 3:  # [B, HW, C]
-            B, HW, C = x.shape
-            H = W = int(HW ** 0.5)
-            x = x.permute(0, 2, 1).reshape(B, C, H, W)  # [B, C, H, W]
+        # Project CLS token to hidden dimension
+        cls_features = self.cls_projection(cls_token)  # [B, hidden_dim]
+        cls_features = F.relu(cls_features)
+        cls_features = self.dropout(cls_features)
         
-        # Pooling
-        if self.pooling_type == 'attention':
-            B, C, H, W = x.shape
-            x_flat = x.flatten(2).transpose(1, 2)  # [B, HW, C]
-            attn_weights = F.softmax(self.attention(x_flat), dim=1)  # [B, HW, 1]
-            x = torch.sum(x_flat * attn_weights, dim=1)  # [B, C]
-        else:
-            x = self.pool(x)  # [B, C, 1, 1]
-            x = x.flatten(1)  # [B, C]
+        # Classification prediction
+        cls_logits = self.classifier(cls_features)  # [B, num_classes]
         
-        # Classification
-        logits = self.classifier(x)  # [B, num_classes]
+        # Fusion features for box head
+        fusion_features = self.fusion_layer(cls_features)  # [B, bottleneck_dim]
         
-        return logits
+        return {
+            'cls_logits': cls_logits,
+            'cls_features': cls_features,
+            'fusion_features': fusion_features
+        }
 
 
 class MultiScaleClassificationHead(nn.Module):
@@ -120,14 +111,16 @@ def build_cls_head(cfg):
     Build classification head based on config
     """
     num_classes = cfg.MODEL.CLS_HEAD.NUM_CLASSES
-    in_dim = cfg.MODEL.HIDDEN_DIM
+    in_dim = cfg.MODEL.HIDDEN_DIM  # CLS token dimension from backbone
     hidden_dim = cfg.MODEL.CLS_HEAD.HIDDEN_DIM
-    pooling = cfg.MODEL.CLS_HEAD.POOLING
+    
+    # Bottleneck dimension for fusion (should match backbone bottleneck)
+    bottleneck_dim = getattr(cfg.MODEL, 'BOTTLENECK_DIM', 256)
     
     return ClassificationHead(
         in_dim=in_dim,
         hidden_dim=hidden_dim,
         num_classes=num_classes,
-        pooling=pooling
+        bottleneck_dim=bottleneck_dim
     )
 

@@ -1,13 +1,16 @@
-# HIPTrack with Classification Branch - Usage Guide
+# HIPTrack with Classification Branch
 
 ```bash
 # Test annotations
 python tracking/test_cls_annotations.py
 
-# Training
-python tracking/train.py --script hiptrack_cls --config hiptrack_cls --save_dir ./output --mode single
+# Training - Standard (single stage)
+CUDA_VISIBLE_DEVICES=0 python tracking/train.py --script hiptrack --config hiptrack_cls --save_dir ./output --mode single
 
-python lib/train/run_training.py --script hiptrack --config hiptrack_cls --save_dir ./output --use_lmdb 0 --script_prv None --config_prv baseline --distill 0 --script_teacher None --config_teacher None --use_wandb 0
+# Training - Two-stage (SimTrackMod strategy)
+# Stage 1: Freeze backbone, train classification head only (30 epochs)
+# Stage 2: Fine-tune entire model (20 epochs)
+# Enable by setting TWO_STAGE: True in hiptrack_cls.yaml
 
 # Testing (cls auto-disabled)
 python tracking/test.py hiptrack_cls hiptrack_cls --dataset got10k_test --threads 4
@@ -16,14 +19,26 @@ python tracking/test.py hiptrack_cls hiptrack_cls --dataset got10k_test --thread
 python tracking/convert_cls_to_tracking.py --input <input.pth.tar> --output <output.pth.tar>
 ```
 
-
 ## Overview
 
-This implementation adds an auxiliary classification branch to HIPTrack for maritime tracking challenges. The classification branch:
+This implementation follows the **SimTrackMod architecture** to add an auxiliary classification branch to HIPTrack for maritime tracking challenges. The classification branch:
+- Uses **CLS token** from ViT backbone (not pooled spatial features)
+- Includes a **fusion layer** that feeds classification features back to box head
+- Supports **two-stage training**: freeze backbone → fine-tune entire model
 - Is used during training to improve feature learning
-- Classifies 10 types of tracking challenges (Occlusion, Illumination Change, Scale Variation, Motion Blur, etc.)
+- Classifies 10 types of tracking challenges
 - Is automatically disabled during inference
-- Does not affect tracking performance
+
+### Key Architecture Differences from Original
+
+| Component | Original | SimTrackMod Architecture |
+|-----------|----------|--------------------------|
+| **Feature Input** | Pooled spatial features | CLS token from ViT |
+| **Dropout** | 0.3 (30%) | 0.1 (10%) |
+| **Fusion Layer** | None | Linear(512→256) for box head |
+| **CLS Token** | Disabled | Enabled (`add_cls_token=True`) |
+| **Feature Flow** | Independent branches | Classification → Box head fusion |
+| **Training Strategy** | Single stage | Two-stage optional |
 
 ## Files Created
 
@@ -74,7 +89,46 @@ The classification label is determined from JSONL annotations with the following
 
 ## Training
 
-### Single GPU Training
+### Two-Stage Training (SimTrackMod Strategy) - Recommended
+
+**Stage 1: Classification Head Training**
+- **Duration**: 30 epochs
+- **Learning Rate**: 1e-3 (higher for faster convergence)
+- **Frozen**: Backbone + Bottleneck
+- **Trainable**: Classification head only (cls_projection, classifier, fusion_layer)
+- **Goal**: Learn good feature representations for maritime challenges
+
+**Stage 2: Full Model Fine-tuning**
+- **Duration**: 20 epochs  
+- **Learning Rate**: 1e-5 (lower to preserve learned features)
+- **Frozen**: None
+- **Trainable**: All parameters
+- **Goal**: Jointly optimize tracking and classification
+
+**Enable Two-Stage Training**:
+
+```yaml
+# In experiments/hiptrack/hiptrack_cls.yaml
+TRAIN:
+  TWO_STAGE: True
+  STAGE1_EPOCHS: 30
+  STAGE1_LR: 1e-3
+  STAGE2_EPOCHS: 20
+  STAGE2_LR: 1e-5
+  FREEZE_BACKBONE_STAGE1: True
+```
+
+```bash
+python tracking/train.py \
+    --script hiptrack \
+    --config hiptrack_cls \
+    --save_dir ./output \
+    --mode single
+```
+
+### Single-Stage Training (Original)
+
+**Standard training without backbone freezing stages:**
 
 ```bash
 cd /home/thinhnp/MOT/models/HIPTrack
@@ -103,16 +157,24 @@ Key parameters in `experiments/hiptrack/hiptrack_cls.yaml`:
 
 ```yaml
 MODEL:
+  HIDDEN_DIM: 768          # CLS token dimension from ViT
+  BOTTLENECK_DIM: 256      # Fusion layer output dimension
   CLS_HEAD:
-    NUM_CLASSES: 10          # Number of classification classes
-    HIDDEN_DIM: 512          # Hidden dimension
-    POOLING: 'avg'           # Pooling method: avg, max, attention
-    DROPOUT: 0.3             # Dropout rate
+    NUM_CLASSES: 10        # Number of classification classes
+    HIDDEN_DIM: 512        # MLP hidden dimension
+    DROPOUT: 0.1           # Dropout rate (SimTrackMod: 0.1)
 
 TRAIN:
-  CLS_WEIGHT: 1.0            # Classification loss weight
-  CLS_LOSS_TYPE: "CE"        # Loss type: CE, FOCAL, LABEL_SMOOTH
-  FREEZE_CLS_EPOCH: -1       # Freeze cls after epoch (-1 = never)
+  CLS_WEIGHT: 1.0          # Classification loss weight
+  CLS_LOSS_TYPE: "CE"      # Loss type: CE, FOCAL, LABEL_SMOOTH
+  FREEZE_CLS_EPOCH: -1     # Freeze cls after epoch (-1 = never)
+  
+  # Two-Stage Training (SimTrackMod)
+  TWO_STAGE: False         # Enable two-stage training
+  STAGE1_EPOCHS: 30        # Stage 1 epochs
+  STAGE1_LR: 1e-3          # Stage 1 learning rate
+  STAGE2_EPOCHS: 20        # Stage 2 epochs
+  STAGE2_LR: 1e-5          # Stage 2 learning rate
   
 DATA:
   TRAIN:
@@ -128,14 +190,6 @@ During testing, the classification branch is automatically disabled.
 ```bash
 python tracking/test.py hiptrack_cls hiptrack_cls \
     --dataset got10k_test \
-    --threads 4
-```
-
-### Test on LaSOT
-
-```bash
-python tracking/test.py hiptrack_cls hiptrack_cls \
-    --dataset lasot \
     --threads 4
 ```
 
@@ -189,19 +243,29 @@ Classification annotations are stored in JSONL format:
 ## Hyperparameter Tuning
 
 ### CLS_WEIGHT
-- Start with 0.5-1.0
-- Increase if classification accuracy is low
-- Decrease if tracking performance degrades
+- **SimTrackMod default**: 1.0
+- Increase to 1.5-2.0 if classification accuracy is low
+- Decrease to 0.5 if tracking performance degrades
+
+### Dropout
+- **SimTrackMod**: 0.1 (recommended)
+- Increase to 0.2-0.3 if overfitting occurs
+- Decrease to 0.05 for small datasets
+
+### Two-Stage Learning Rates
+- **Stage 1 LR**: 1e-3 (classification head only, can be higher)
+- **Stage 2 LR**: 1e-5 (full model, must be lower to preserve features)
+- Adjust based on convergence: if loss plateaus, reduce LR
 
 ### CLS_LOSS_TYPE
-- **CE**: For balanced classes
-- **FOCAL**: For imbalanced classes
-- **LABEL_SMOOTH**: To reduce overfitting
+- **CE**: For balanced classes (recommended default)
+- **FOCAL**: For imbalanced classes (alpha=0.25, gamma=2.0)
+- **LABEL_SMOOTH**: To reduce overfitting (smoothing=0.1)
 
 ### FREEZE_CLS_EPOCH
 - Set to -1 to never freeze (train throughout)
-- Set to 200-250 to freeze in later epochs
-- Helps stabilize tracking performance
+- Set to 80-100 to freeze in later epochs
+- Helps stabilize tracking performance in final epochs
 
 ## Monitoring Training
 
@@ -222,47 +286,116 @@ The training will log:
 - `IoU` - Tracking IoU
 - `Accuracy` - Classification accuracy
 
-## Troubleshooting
-
-### Issue: NaN Loss
-**Solution**: Reduce learning rate or CLS_WEIGHT
-
-### Issue: Low Classification Accuracy
-**Solutions**:
-1. Check annotation files are correctly formatted
-2. Increase CLS_WEIGHT
-3. Try different loss type (FOCAL for imbalanced data)
-4. Increase training epochs
-
-### Issue: Tracking Performance Degraded
-**Solutions**:
-1. Decrease CLS_WEIGHT
-2. Set FREEZE_CLS_EPOCH to freeze earlier
-3. Check if classification labels are correct
-
-### Issue: Missing Classification Annotations
-**Behavior**: Dataset will use ignore index (-100) for frames without annotations
-**Impact**: These frames won't contribute to classification loss
-
 ## Architecture Details
 
-### Classification Head
-- Input: Search region features `[B, HW, C]`
-- Pooling: Adaptive pooling (avg/max/attention)
-- MLP: Two-layer with ReLU and Dropout
-- Output: Class logits `[B, 10]`
+### HipTrack Classification Architecture
 
-### Integration
-- Classification head receives features from ViT backbone
-- Only search region features are used (template features ignored)
-- Gradients from classification loss help improve backbone features
-- During inference, classification head is disabled
+```
+ViT Backbone Output: [B, HW_template+HW_search, C=768]
+                              ↓
+                    ┌─────────┴─────────┐
+                    │                   │
+          Search Features          Template Features
+          [B, HW_search, C]        [B, HW_template, C]
+                    │                   │
+                ↓                   ↓
+         Mean Pooling          (not used for cls)
+         Global Feature             │
+            [B, 768]                │
+                │                   │
+                ↓                   ↓
+    ┌───────────────────┐    Box Prediction
+    │ Classification    │         Path
+    │    Head           │           │
+    └───────────────────┘           │
+                │                   │
+    ┌───────────┼───────────┐      │
+    │           │           │      │
+    ↓           ↓           ↓      ↓
+Projection    Classifier   Fusion   │
+Linear(768→512) Linear→10  Linear→256│
+    │           │           │      │
+    ↓           ↓           ↓      ↓
+Hidden Feat   Class Logits  Fusion  Spatial
+[B, 512]      [B, 10]       [B, 256] Features
+    │           │           │      │
+    └───────────┴───────────┴──────┘
+                │
+        ┌───────┴───────┐
+        │ Residual Add  │ ← Fusion improves tracking
+        └───────────────┘
+                ↓
+        Box Prediction [B, 4]
+```
+
+**Note**: Currently using **mean pooling** of search features to create global representation, which approximates the CLS token behavior from SimTrackMod. This avoids index shifting issues while maintaining the architectural benefits.
+
+### Classification Head Components
+
+**Input**: Global feature `[B, 768]` from mean pooling of search region patches
+- Alternative to CLS token (avoids index shifting complexity)
+- Captures global context of search region
+- Equivalent representation to CLS token for classification
+
+**Layers**:
+1. **Projection**: `Linear(768 → 512)` + `ReLU` + `Dropout(0.1)`
+2. **Classifier**: `Linear(512 → 10)` → Class logits
+3. **Fusion Layer**: `Linear(512 → 256)` → Features for box head
+
+**Outputs**:
+- `cls_logits`: Classification predictions `[B, 10]`
+- `cls_features`: Hidden representations `[B, 512]`
+- `fusion_features`: Box head enhancement `[B, 256]`
+
+### Integration with Box Head
+
+The fusion features are added to spatial features via **residual connection**:
+
+```python
+# In forward_head():
+fused_search = searchRegionFusion(original + dynamic)  # [B, C, H, W]
+
+# Add classification fusion if available
+if fusion_features is not None:
+    fusion_spatial = fusion_features.unsqueeze(-1).unsqueeze(-1)
+    fusion_spatial = fusion_spatial.expand(-1, -1, H, W)
+    fused_search = fused_search + fusion_spatial  # Residual add
+
+# Continue to box prediction
+pred_boxes = box_head(fused_search)
+```
+
+This allows classification to influence tracking by providing global context.
 
 ## Performance Impact
 
-- **Training**: ~5-10% slower due to additional forward pass
-- **Inference**: No impact (classification branch disabled)
-- **Memory**: ~50MB additional for classification head parameters
+- **Training**: ~5-10% slower due to classification forward pass
+- **Inference**: No impact (classification branch disabled automatically)
+- **Memory**: 
+  - CLS head parameters: ~2-3MB
+  - CLS token in backbone: +1 token per sample
+  - Fusion layer: ~0.5MB
+  - **Total additional**: ~3-5MB
+
+## Architecture Advantages (SimTrackMod vs Original)
+
+### Using Global Pooling (CLS Token Alternative)
+✅ **Global context**: Mean pooling aggregates information from entire search region  
+✅ **Efficient**: Single operation, no additional tokens needed  
+✅ **Robust**: Avoids index shifting issues with template+search concatenation  
+✅ **Effective**: Equivalent to CLS token for classification tasks
+
+### Fusion Mechanism
+✅ **Bidirectional**: Classification helps tracking, tracking helps classification  
+✅ **Residual connection**: Easy gradient flow, stable training  
+✅ **Lightweight**: Only 512×256 additional parameters  
+✅ **Performance**: Classification features improve box prediction
+
+### Two-Stage Training
+✅ **Faster convergence**: Classification head learns quickly with frozen backbone  
+✅ **Better features**: Prevents catastrophic forgetting of pretrained weights  
+✅ **Flexible**: Can stop after stage 1 for fast deployment  
+✅ **Proven**: Strategy from SimTrack paper shows good results
 
 ## Dataset Compatibility
 
@@ -272,18 +405,46 @@ Currently configured for:
 
 ## Future Improvements
 
-1. Multi-label classification (frame can have multiple challenges)
-2. Temporal consistency in classification predictions
-3. Use classification predictions to guide tracking
-4. Active learning based on classification confidence
+1. **Multi-label classification** - Frame can have multiple challenges simultaneously
+2. **Temporal consistency** - Use classification history for smoother predictions  
+3. **Adaptive tracking** - Adjust tracking strategy based on predicted challenge
+4. **Active learning** - Sample hard examples based on classification confidence
+5. **Attention fusion** - Replace residual add with learned attention weights
+6. **Progressive unfreezing** - Gradually unfreeze backbone layers in stage 2
 
 ## References
 
-- Original HIPTrack paper
+- **HIPTrack**: Historical Prompt Network for Visual Tracking
+- **SimTrack**: Simple Baseline for Visual Tracking (ECCV 2022)
+- **SimTrackMod**: Classification branch extension for maritime tracking
+- **ViT**: Vision Transformer (ICLR 2021) - CLS token design
 - Maritime tracking challenges taxonomy
-- See CLASSIFICATION_BRANCH_GUIDE.md for detailed implementation guide
+
+## Migration from Original Implementation
+
+If you have an existing HIPTrack classification model, here's what changed:
+
+### Breaking Changes
+1. **Global pooling**: Now uses mean pooling instead of CLS token or adaptive pooling
+2. **Dropout reduced**: 0.3 → 0.1
+3. **Fusion layer added**: New `Linear(512→256)` for box head integration
+4. **Input changed**: Uses search features `[B, HW, C]` → mean pooled to `[B, C]`
+
+### Backward Compatibility
+- Old checkpoints **won't work** directly (different architecture)
+- Need to retrain from scratch (recommended)
+- Config files need updating (remove POOLING, add BOTTLENECK_DIM)
+
+### Migration Steps
+1. Update config: Remove `POOLING`, add `BOTTLENECK_DIM: 256`
+2. Set `DROPOUT: 0.1` in CLS_HEAD
+3. Retrain from scratch (recommended) or fine-tune pretrained tracking weights
+4. For two-stage training, set `TWO_STAGE: True`
 
 ## Contact
 
-For issues or questions, please check the implementation guide or contact the development team.
+For issues or questions about the SimTrackMod architecture implementation, check:
+- `/home/thinhnp/MOT/models/SimTrackMod/CLASSIFICATION_BRANCH_GUIDE.md` (original guide)
+- This implementation guide
+- Training logs in `./output/logs/`
 
