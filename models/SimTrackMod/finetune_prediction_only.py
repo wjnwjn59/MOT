@@ -501,15 +501,15 @@ class PredictionTrainer:
 def main():
     parser = argparse.ArgumentParser(description='Fine-tune SimTrack Prediction Head with CLS Feature Fusion')
     parser.add_argument('--data_dir', type=str, 
-                       default='/home/thinhnp/MOT/data/train_maritime_env_clf_annts',
+                       default='../data/train_maritime_env_clf_annts',
                        help='Path to maritime tracking data')
     parser.add_argument('--pretrained_weights', type=str,
-                       default='/home/thinhnp/MOT/models/SimTrackMod/sim-vit-b-16.pth',
+                       default='./SimTrackMod/sim-vit-b-16.pth',
                        help='Path to pretrained weights')
     parser.add_argument('--classification_weights', type=str, default=None,
                        help='Path to pre-trained classification weights (optional)')
     parser.add_argument('--save_dir', type=str,
-                       default='/home/thinhnp/MOT/models/SimTrackMod/checkpoints/prediction_only',
+                       default='./SimTrackMod/checkpoints/prediction_only',
                        help='Directory to save checkpoints')
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')

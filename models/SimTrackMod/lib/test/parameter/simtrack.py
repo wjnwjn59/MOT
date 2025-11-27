@@ -21,9 +21,8 @@ def parameters(yaml_name: str):
     params.search_size = cfg.TEST.SEARCH_SIZE
 
     # Network checkpoint path
-    # params.checkpoint = os.path.join(save_dir, "checkpoints/train/simtrack/%s/SimTrack_ep%04d.pth.tar" % (yaml_name, cfg.TEST.EPOCH))
-    params.checkpoint = "/home/thinhnp/MOT/models/SimTrack/SimTrack_ep0050.pth.tar"
-    # params.checkpoint = "/home/thinhnp/MOT/models/SimTrack/sim-vit-b-16.pth"
+    params.checkpoint = os.path.join(save_dir, "checkpoints/train/simtrack/%s/SimTrack_ep%04d.pth.tar" % (yaml_name, cfg.TEST.EPOCH))
+    # params.checkpoint = "./SimTrack/sim-vit-b-16.pth"
 
     # whether to save boxes from all queries
     params.save_all_boxes = False

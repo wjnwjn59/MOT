@@ -1,0 +1,1 @@
+python finetune_classification.py --data_dir /home/thinhnp/MOT/data/train_maritime_env_clf_annts --batch_size 32 --freeze_backbone --epochs 10 --lr 1e-4 --save_dir ./checkpoints/maritime_classification 

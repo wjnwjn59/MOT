@@ -20,6 +20,9 @@ data
 *backup*
 
 *.txt
+!requirements.txt
+!Run_train.txt
+!Run_test.txt
 
 *.log
 events.out.tfevents.*

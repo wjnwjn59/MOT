@@ -2,6 +2,19 @@ SimTrack
 =========================================
 Official Code for [Backbone is All Your Need: A Simplified Architecture for Visual Object Tracking](https://arxiv.org/abs/2107.02960) accepted by ECCV 2022.
 
+## Run train and test
+
+```bash
+python finetune_classification.py --data_dir ../data/train_maritime_env_clf_annts --batch_size 32 --freeze_backbone --epochs 10 --lr 1e-4 --exp_name maritime_classification --save_dir ./checkpoints/maritime_classification (old)
+
+python finetune_classification.py --data_dir ../data/train_maritime_env_clf_annts --batch_size 32 --freeze_backbone --epochs 10 --lr 1e-4 --save_dir ./checkpoints/maritime_classification 
+
+python finetune_prediction_only.py \
+    --data_dir ../data/train_maritime_env_clf_annts \
+    --batch_size 32 \
+    --freeze_backbone \
+    --epochs 10
+```
 
 ## Requirements
 - python==3.8.15

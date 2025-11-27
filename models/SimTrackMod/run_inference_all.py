@@ -253,11 +253,9 @@ def run_sequence_inference(inference_model, sequence_dir, output_dir, sequence_n
 
 def main():
     # Configuration
-    # checkpoint_path = "/home/thinhnp/MOT/models/SimTrackMod/checkpoints/maritime_classification_with_cls/simtrack_classification_best.pth.tar"
-    # checkpoint_path = "/home/thinhnp/MOT/models/SimTrackMod/checkpoints/maritime_classification/simtrack_classification_best.pth.tar"
-    checkpoint_path = "/home/thinhnp/MOT/models/SimTrackMod/checkpoints/prediction_only/simtrack_prediction_best.pth.tar"
-    test_data_dir = "/home/thinhnp/MOT/data/MVTD/test"
-    output_dir = "/home/thinhnp/MOT/models/SimTrackMod/output/test/tracking_results"
+    checkpoint_path = "./models/SimTrackMod/checkpoints/prediction_only/simtrack_prediction_best.pth.tar"
+    test_data_dir = "../data/MVTD/test"
+    output_dir = "./models/SimTrackMod/output/test/tracking_results"
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     print("=== Maritime Classification Inference ===")

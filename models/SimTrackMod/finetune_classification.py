@@ -469,13 +469,13 @@ class ClassificationTrainer:
 def main():
     parser = argparse.ArgumentParser(description='Fine-tune SimTrack Classification Head')
     parser.add_argument('--data_dir', type=str, 
-                       default='/home/thinhnp/MOT/data/train_maritime_env_clf_annts',
+                       default='../data/train_maritime_env_clf_annts',
                        help='Path to maritime classification data')
     parser.add_argument('--pretrained_weights', type=str,
-                       default='/home/thinhnp/MOT/models/SimTrackMod/sim-vit-b-16.pth',
+                       default='./SimTrackMod/sim-vit-b-16.pth',
                        help='Path to pretrained weights')
     parser.add_argument('--save_dir', type=str,
-                       default='/home/thinhnp/MOT/models/SimTrackMod/checkpoints/classification',
+                       default='./SimTrackMod/checkpoints/classification',
                        help='Directory to save checkpoints')
     parser.add_argument('--batch_size', type=int, default=8, help='Batch size')
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')

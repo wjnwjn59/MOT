@@ -1,0 +1,81 @@
+# Simplified requirements for HIPTrack
+# Installation: 
+# 1. uv venv --python 3.8
+# 2. source .venv/bin/activate  
+# 3. uv pip install torch==1.10.1+cu113 torchvision==0.11.2+cu113 torchaudio==0.10.1 --index-url https://download.pytorch.org/whl/cu113
+# 4. uv pip install "setuptools<60" cython numpy wheel
+# 5. uv pip install -r requirements-clean.txt
+
+# Core ML/DL packages
+opencv-python==4.5.5.64
+pillow
+matplotlib
+scipy
+scikit-learn
+scikit-image
+pandas
+
+# Computer Vision & Detection
+mmcv-full==1.7.1
+mmdet==2.28.1
+pycocotools
+timm==0.5.4
+einops
+
+# Tracking specific
+filterpy
+motmetrics
+lap
+cython-bbox
+
+# ONNX
+onnx
+onnxruntime
+
+# Config & Utilities
+hydra-core
+omegaconf
+easydict
+yacs
+addict
+pyyaml
+
+# Logging & Visualization
+tensorboard
+wandb
+visdom
+tqdm
+loguru
+coloredlogs
+
+# Image/Video processing
+imageio
+imageio-ffmpeg
+moviepy
+
+# Audio (for completeness)
+librosa
+soundfile
+
+# Development tools
+ipython
+jupyter
+notebook
+black
+pylint
+yapf
+
+# Other utilities
+requests
+h5py
+lmdb
+faiss-cpu
+huggingface-hub
+
+# Specific versions for compatibility
+numpy==1.22.3
+
+# Another packages
+tensorboardX
+jpeg4py
+thop

@@ -187,7 +187,7 @@ def main():
     parser.add_argument("--dataset_path", type=str, default="/mnt/VLAI_data/MVTD/test",
                        help="Path to dataset directory")
     parser.add_argument("--predictions_path", type=str, 
-                       default="/home/thinhnp/MOT/models/SimTrackMod/output/test/tracking_results/simtrack/baseline_got10k_only/got10k",
+                       default=None,
                        help="Path to predictions directory")
     parser.add_argument("--output_dir", type=str, default="./visualization_output",
                        help="Output directory for visualized images")

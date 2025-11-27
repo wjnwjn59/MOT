@@ -63,8 +63,7 @@ def main():
     print("=" * 60)
     
     # Configuration
-    # original_results_dir = "/home/thinhnp/MOT/models/SimTrack/output/test/tracking_results/simtrack/baseline_got10k_only/got10k"
-    original_results_dir = "/home/thinhnp/MOT/models/SimTrackMod/output/test/tracking_results/simtrack/predict/got10k"
+    original_results_dir = "./SimTrack/output/test/tracking_results/simtrack/baseline_got10k_only/got10k"
     
     try:
         # Load dataset - try both val and test splits
