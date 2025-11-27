@@ -7,7 +7,7 @@ def local_env_settings():
 
     settings.davis_dir = ''
     settings.got10k_lmdb_path = ''
-    settings.got10k_path = '../../data/MVTD'
+    settings.got10k_path = '../data'
     settings.got_packed_results_path = ''
     settings.got_reports_path = ''
     settings.itb_path = ''

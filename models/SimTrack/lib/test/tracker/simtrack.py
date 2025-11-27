@@ -15,9 +15,9 @@ class SimTrack(BaseTracker):
     def __init__(self, params, dataset_name):
         super(SimTrack, self).__init__(params)
         network = build_simtrack(params.cfg)
-        # network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu', weights_only=False)['net'], strict=True)
-        network.load_state_dict(torch.load("./SimTrack_ep0050.pth.tar", map_location='cpu', weights_only=False)['net'], strict=True)
-        # network.load_state_dict(torch.load("/home/thinhnp/MOT/models/SimTrack/sim-vit-b-16.pth", map_location='cpu', weights_only=False), strict=True)
+        network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu', weights_only=False)['net'], strict=True)
+        # network.load_state_dict(torch.load("./SimTrack_ep0050.pth.tar", map_location='cpu', weights_only=False)['net'], strict=True)
+        # network.load_state_dict(torch.load("", map_location='cpu', weights_only=False), strict=True)
         self.cfg = params.cfg
         self.network = network.cuda()
         self.network.eval()

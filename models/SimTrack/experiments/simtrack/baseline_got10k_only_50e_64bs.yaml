@@ -24,12 +24,12 @@ DATA:
     DATASETS_RATIO:
     - 1
     SAMPLE_PER_EPOCH: 6000
-  VAL:
-    DATASETS_NAME:
-    - GOT10K_votval
-    DATASETS_RATIO:
-    - 1
-    SAMPLE_PER_EPOCH: 1000
+  # VAL:
+  #   DATASETS_NAME:
+  #   - GOT10K_votval
+  #   DATASETS_RATIO:
+  #   - 1
+  #   SAMPLE_PER_EPOCH: 10000
 MODEL:
   BACKBONE:
     NUM_FEA: 768

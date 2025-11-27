@@ -46,6 +46,7 @@ def run(settings):
 
     # Build dataloaders
     loader_train, loader_val = build_dataloaders(cfg, settings)
+    print("Number of data:", len(loader_train))
 
     if "RepVGG" in cfg.MODEL.BACKBONE.TYPE or "swin" in cfg.MODEL.BACKBONE.TYPE or "LightTrack" in cfg.MODEL.BACKBONE.TYPE:
         cfg.ckpt_dir = settings.save_dir
@@ -59,8 +60,7 @@ def run(settings):
         net = build_stark_lightning_x_trt(cfg, phase="train")
     elif settings.script_name == "simtrack":
         net = build_simtrack(cfg)
-        # net.load_state_dict(torch.load("/home/thinhnp/MOT/models/SimTrack/sim-vit-b-16.pth", map_location='cpu', weights_only=False), strict=True)
-        # net.load_state_dict(torch.load("/home/thinhnp/MOT/models/SimTrack/SimTrack_ep0050.pth.tar", map_location='cpu', weights_only=False)['net'], strict=True)
+        net.load_state_dict(torch.load("../pretrained/SimTrack/sim-vit-b-16.pth", map_location='cpu', weights_only=False), strict=True)
     else:
         raise ValueError("illegal script name")
 

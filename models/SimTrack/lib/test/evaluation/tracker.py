@@ -83,7 +83,6 @@ class Tracker:
         init_info = seq.init_info()
 
         tracker = self.create_tracker(params)
-        print(params)
         output = self._track_sequence(tracker, seq, init_info)
         return output
 
