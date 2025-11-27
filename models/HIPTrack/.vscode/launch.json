@@ -5,11 +5,9 @@
             "type": "debugpy",
             "request": "launch",
             "name": "HIPTrack Training Cls",
-            // "program": "${workspaceFolder}/lib/train/run_training.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
-            // "python": "/home/thinhnp/MOT/models/HIPTrack/.venv/bin/python",
             "module": "uv",
             "args": [
                 "run",

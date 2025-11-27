@@ -1,4 +1,4 @@
-import tikzplotlib
+import matplot2tikz
 import matplotlib
 import matplotlib.pyplot as plt
 import os
