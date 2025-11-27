@@ -63,7 +63,9 @@ def main():
     print("=" * 60)
     
     # Configuration
-    original_results_dir = "./output/test/tracking_results/simtrack/baseline_got10k_only/got10k"
+    original_results_dir = "SimTrack/output/test/tracking_results/simtrack/baseline_got10k_only_50e_64bs/got10k"
+    parameter_name = original_results_dir.split("/")[-2]
+
     
     try:
         # Load dataset - try both val and test splits
@@ -107,7 +109,7 @@ def main():
             print("\nSetting up tracker...")
             
             tracker_name = 'simtrack'
-            parameter_name = 'baseline_got10k_only'
+            # parameter_name = 'baseline_got10k_only_50e_64bs'
             
             trackers = trackerlist(
                 name=tracker_name,

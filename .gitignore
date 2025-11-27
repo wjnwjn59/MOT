@@ -26,3 +26,5 @@ events.out.tfevents.*
 
 extracted_templates/
 *.mp4
+*output
+*checkpoints
