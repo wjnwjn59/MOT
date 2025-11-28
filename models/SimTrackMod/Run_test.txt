@@ -1,1 +1,1 @@
-python run_inference_all.py
+python run_inference_all.py --checkpoint ./checkpoints/maritime_classification/simtrack_classification_best.pth.tar --test_data ../../data/MVTD/test --output ./output/test/tracking_results --device cuda

@@ -7,6 +7,7 @@ import numpy as np
 from pathlib import Path
 import glob
 from tqdm import tqdm
+import argparse
 
 # Add project path
 prj_path = os.path.dirname(os.path.abspath(__file__))
@@ -238,7 +239,7 @@ def run_sequence_inference(inference_model, sequence_dir, output_dir, sequence_n
     with open(confidence_file, 'w') as f:
         f.write('\n'.join(confidence_results) + '\n')
     
-    print(f"✅ Saved results to {seq_output_dir}")
+    print(f"[SUCCESS] Saved results to {seq_output_dir}")
     
     # Print classification summary
     class_counts = {}
@@ -252,13 +253,28 @@ def run_sequence_inference(inference_model, sequence_dir, output_dir, sequence_n
     print()
 
 def main():
-    # Configuration
-    checkpoint_path = "./models/SimTrackMod/checkpoints/prediction_only/simtrack_prediction_best.pth.tar"
-    test_data_dir = "../data/MVTD/test"
-    output_dir = "./models/SimTrackMod/output/test/tracking_results"
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    parser = argparse.ArgumentParser(description='Maritime Classification Inference')
+    parser.add_argument('--checkpoint', type=str, 
+                       default='./checkpoints/maritime_classification/simtrack_prediction_best.pth.tar',
+                       help='Path to model checkpoint')
+    parser.add_argument('--test_data', type=str,
+                       default='../data/MVTD/test',
+                       help='Path to test data directory')
+    parser.add_argument('--output', type=str,
+                       default='./output/test/tracking_results',
+                       help='Output directory for results')
+    parser.add_argument('--device', type=str, default='auto',
+                       help='Device to use (cuda/cpu/auto). Default: auto')
     
-    print("=== Maritime Classification Inference ===")
+    args = parser.parse_args()
+    
+    # Configuration
+    checkpoint_path = args.checkpoint
+    test_data_dir = args.test_data
+    output_dir = args.output
+    device = 'cuda' if torch.cuda.is_available() else 'cpu' if args.device == 'auto' else args.device
+    
+    print("Maritime Classification Inference")
     print(f"Checkpoint: {checkpoint_path}")
     print(f"Test data: {test_data_dir}")
     print(f"Output: {output_dir}")
@@ -267,11 +283,11 @@ def main():
     
     # Check paths
     if not os.path.exists(checkpoint_path):
-        print(f"❌ Checkpoint not found: {checkpoint_path}")
+        print(f"[ERROR] Checkpoint not found: {checkpoint_path}")
         return
         
     if not os.path.exists(test_data_dir):
-        print(f"❌ Test data not found: {test_data_dir}")
+        print(f"[ERROR] Test data not found: {test_data_dir}")
         return
     
     # Initialize inference model
@@ -293,15 +309,15 @@ def main():
         try:
             run_sequence_inference(inference_model, sequence_dir, output_dir, sequence_name)
         except Exception as e:
-            print(f"❌ Error processing {sequence_name}: {e}")
+            print(f"[ERROR] Error processing {sequence_name}: {e}")
             continue
     
     total_time = time.time() - total_time
     
     print("="*60)
-    print(f"✅ Completed inference on {len(sequences)} sequences")
-    print(f"⏱️  Total time: {total_time:.2f} seconds")
-    print(f"📁 Results saved to: {output_dir}")
+    print(f"[SUCCESS] Completed inference on {len(sequences)} sequences")
+    print(f"[TIME] Total time: {total_time:.2f} seconds")
+    print(f"[OUTPUT] Results saved to: {output_dir}")
     print()
     print("Output structure:")
     print("sequence_name/")

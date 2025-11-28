@@ -472,10 +472,10 @@ def main():
                        default='../data/train_maritime_env_clf_annts',
                        help='Path to maritime classification data')
     parser.add_argument('--pretrained_weights', type=str,
-                       default='./SimTrackMod/sim-vit-b-16.pth',
+                       default='./checkpoints/sim-vit-b-16.pth',
                        help='Path to pretrained weights')
     parser.add_argument('--save_dir', type=str,
-                       default='./SimTrackMod/checkpoints/classification',
+                       default='./checkpoints/classification',
                        help='Directory to save checkpoints')
     parser.add_argument('--batch_size', type=int, default=8, help='Batch size')
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
