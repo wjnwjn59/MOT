@@ -29,6 +29,9 @@ import argparse
 # Add local path (so simtrack_with_classification and lib are found)
 sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
 
+# Import config utilities
+from lib.config.simtrack.config import cfg, update_config_from_file
+
 # Import custom model
 from simtrack_with_classification import (
     SimTrackWithClassification,
@@ -36,7 +39,6 @@ from simtrack_with_classification import (
     load_pretrained_weights,
     freeze_backbone,
     unfreeze_backbone,
-    DummyConfig,
 )
 
 # Multi-GPU helper
@@ -624,16 +626,16 @@ def main():
     parser = argparse.ArgumentParser(description="Unified fine-tune SimTrack on MVTD")
 
     parser.add_argument(
-        "--data_dir",
+        "--cfg",
         type=str,
-        default="../data/train_maritime_env_clf_annts",
-        help="Path to maritime MVTD-style annotations (per-sequence folders).",
+        default="experiments/simtrack/baseline_cls_finetune.yaml",
+        help="Path to YAML config file for classification training",
     )
     parser.add_argument(
-        "--pretrained_weights",
+        "--data_dir",
         type=str,
-        default="./SimTrackMod/sim-vit-b-16.pth",
-        help="Path to pretrained SimTrack weights.",
+        default=None,
+        help="Optional override for data directory",
     )
     parser.add_argument(
         "--save_dir",
@@ -641,52 +643,19 @@ def main():
         default="./checkpoints",
         help="Root directory to save checkpoints. A per-run subfolder will be created.",
     )
-    parser.add_argument(
-        "--batch_size", type=int, default=8, help="Batch size."
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=50, help="Number of epochs."
-    )
-    parser.add_argument(
-        "--lr", type=float, default=1e-4, help="Learning rate."
-    )
-    parser.add_argument(
-        "--weight_decay", type=float, default=1e-4, help="Weight decay."
-    )
-    parser.add_argument(
-        "--max_samples",
-        type=int,
-        default=500,
-        help="Max samples per sequence (limit frames per sequence).",
-    )
-    parser.add_argument(
-        "--val_split",
-        type=float,
-        default=0.2,
-        help="Validation split ratio.",
-    )
-    parser.add_argument(
-        "--freeze_backbone",
-        action="store_true",
-        help="Freeze backbone + bottleneck during training.",
-    )
-    parser.add_argument(
-        "--train_cls_head",
-        action="store_true",
-        help="If set, train classification head jointly with bbox. "
-             "If not set, train bbox only (cls branch disabled).",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=59,
-        help="Random seed for everything (default: 59).",
-    )
 
     args = parser.parse_args()
 
+    # Load config from YAML file
+    print(f"Loading config from {args.cfg}...")
+    update_config_from_file(args.cfg)
+    
+    # Override data_dir if provided
+    if args.data_dir:
+        cfg.DATA.TRAIN.DATA_DIR = args.data_dir
+    
     # Seed
-    set_seed(args.seed)
+    set_seed(cfg.TRAIN.SEED)
 
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -694,9 +663,13 @@ def main():
 
     # Dataset
     print("Loading dataset...")
+    data_dir = cfg.DATA.TRAIN.DATA_DIR
+    if not data_dir:
+        raise ValueError("DATA_DIR not set in config file")
+    
     full_dataset = MaritimeMVTDataset(
-        args.data_dir,
-        max_samples_per_seq=args.max_samples,
+        data_dir,
+        max_samples_per_seq=cfg.TRAIN.MAX_SAMPLES_PER_SEQ,
     )
 
     num_classes = len(full_dataset.class_mapping)
@@ -707,18 +680,18 @@ def main():
 
     # Model
     print("Building model...")
-    cfg = DummyConfig()
-    model = build_simtrack_with_classification(
-        cfg,
-        num_classes=num_classes,
-        hidden_dim=512,
-    )
+    model = build_simtrack_with_classification(cfg)
 
-    print(f"Loading pretrained weights from {args.pretrained_weights}...")
-    model = load_pretrained_weights(model, args.pretrained_weights, strict=False)
+    # Load pretrained weights
+    pretrained_weights = cfg.TRAIN.PRETRAINED_WEIGHTS
+    if pretrained_weights:
+        print(f"Loading pretrained weights from {pretrained_weights}...")
+        model = load_pretrained_weights(model, pretrained_weights, strict=False)
+    else:
+        print("Warning: No pretrained weights loaded")
 
     # Optionally freeze backbone
-    if args.freeze_backbone:
+    if cfg.TRAIN.FREEZE_BACKBONE:
         print("Freezing backbone parameters...")
         model = freeze_backbone(model)
     else:
@@ -729,13 +702,13 @@ def main():
 
     # Split dataset
     total_size = len(full_dataset)
-    val_size = int(total_size * args.val_split)
+    val_size = int(total_size * cfg.TRAIN.VAL_SPLIT)
     train_size = total_size - val_size
 
     train_dataset, val_dataset = torch.utils.data.random_split(
         full_dataset,
         [train_size, val_size],
-        generator=torch.Generator().manual_seed(args.seed),
+        generator=torch.Generator().manual_seed(cfg.TRAIN.SEED),
     )
 
     print(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
@@ -743,21 +716,21 @@ def main():
     # Dataloaders
     train_loader = DataLoader(
         train_dataset,
-        batch_size=args.batch_size,
+        batch_size=cfg.TRAIN.BATCH_SIZE,
         shuffle=True,
-        num_workers=4,
+        num_workers=cfg.TRAIN.NUM_WORKER,
         pin_memory=True,
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=args.batch_size,
+        batch_size=cfg.TRAIN.BATCH_SIZE,
         shuffle=False,
-        num_workers=4,
+        num_workers=cfg.TRAIN.NUM_WORKER,
         pin_memory=True,
     )
 
     # Create per-run save folder
-    mode_str = "joint" if args.train_cls_head else "bbox"
+    mode_str = "joint" if cfg.TRAIN.TRAIN_CLS_HEAD else "bbox"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     run_dir = os.path.join(
         args.save_dir, f"maritime_simtrackcls_{mode_str}_{timestamp}"
@@ -766,24 +739,24 @@ def main():
     print(f"Run save directory: {run_dir}")
 
     # Optimizer & scheduler
-    optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = StepLR(optimizer, step_size=20, gamma=0.1)
+    optimizer = AdamW(model.parameters(), lr=cfg.TRAIN.LR, weight_decay=cfg.TRAIN.WEIGHT_DECAY)
+    scheduler = StepLR(optimizer, step_size=cfg.TRAIN.LR_DROP_EPOCH, gamma=cfg.TRAIN.SCHEDULER.DECAY_RATE)
 
     # Trainer
     trainer = MaritimeTrainer(
         model,
         device,
         run_dir,
-        train_cls_head=args.train_cls_head,
+        train_cls_head=cfg.TRAIN.TRAIN_CLS_HEAD,
         class_weights=class_weights,
-        lambda_cls=0.1,
-        lambda_l1=5.0,
-        lambda_giou=2.0,
+        lambda_cls=cfg.TRAIN.CLS_WEIGHT,
+        lambda_l1=cfg.TRAIN.L1_WEIGHT,
+        lambda_giou=cfg.TRAIN.GIOU_WEIGHT,
     )
 
     # Training loop
     print("Starting training...")
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(1, cfg.TRAIN.EPOCH + 1):
         train_loss, train_iou = trainer.train_epoch(train_loader, optimizer, epoch)
         val_loss, val_iou = trainer.validate(val_loader, epoch)
 

@@ -177,10 +177,21 @@ class SimTrackWithClassification(nn.Module):
         return {"feat": feat_vec}
 
 
-def build_simtrack_with_classification(cfg, num_classes=10, hidden_dim=512):
+def build_simtrack_with_classification(cfg, num_classes=None, hidden_dim=None):
     """
     Build SimTrack model with classification head
+    
+    Args:
+        cfg: Config object with MODEL, CLASSIFICATION settings
+        num_classes: Override NUM_CLASSES from config (optional)
+        hidden_dim: Override HIDDEN_DIM from config (optional)
     """
+    # Get num_classes and hidden_dim from config or use provided values
+    if num_classes is None:
+        num_classes = cfg.MODEL.CLASSIFICATION.NUM_CLASSES if hasattr(cfg.MODEL, 'CLASSIFICATION') else 10
+    if hidden_dim is None:
+        hidden_dim = cfg.MODEL.CLASSIFICATION.HIDDEN_DIM if hasattr(cfg.MODEL, 'CLASSIFICATION') else 512
+    
     backbone = build_backbone_simtrack(cfg)
     box_head = build_box_head(cfg)
     
@@ -288,7 +299,7 @@ def unfreeze_backbone(model):
 
 
 class DummyConfig:
-    """Dummy config for testing"""
+    """Dummy config for unit testing only"""
     def __init__(self):
         self.MODEL = DummyModelConfig()
         self.TRAIN = DummyTrainConfig()
@@ -298,8 +309,9 @@ class DummyModelConfig:
     def __init__(self):
         self.BACKBONE = DummyBackboneConfig()
         self.HEAD_TYPE = "CORNER"
-        self.HIDDEN_DIM = 256  # Changed to match bottleneck output
+        self.HIDDEN_DIM = 256
         self.HEAD_DIM = 256
+        self.CLASSIFICATION = DummyClassificationConfig()
 
 class DummyBackboneConfig:
     def __init__(self):
@@ -322,6 +334,11 @@ class DummyDataConfig:
 class DummySearchConfig:
     def __init__(self):
         self.SIZE = 224
+
+class DummyClassificationConfig:
+    def __init__(self):
+        self.NUM_CLASSES = 10
+        self.HIDDEN_DIM = 512
 
 
 def unit_test():
