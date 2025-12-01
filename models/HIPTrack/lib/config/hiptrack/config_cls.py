@@ -12,14 +12,12 @@ cfg = edict(base_cfg.copy())
 # MODEL - CLASSIFICATION HEAD
 cfg.MODEL.CLS_HEAD = edict()
 cfg.MODEL.CLS_HEAD.NUM_CLASSES = 10  # Number of classification classes (maritime tracking challenges)
-cfg.MODEL.CLS_HEAD.HIDDEN_DIM = 512  # Hidden dimension for classifier
-cfg.MODEL.CLS_HEAD.DROPOUT = 0.1  # Dropout rate (SimTrackMod: 0.1)
+cfg.MODEL.CLS_HEAD.HIDDEN_DIM = 512  # Hidden dimension for classifier MLP
+cfg.MODEL.CLS_HEAD.DROPOUT = 0.1  # Dropout rate for regularization
 
-# MODEL - Add hidden dim and bottleneck dim if not exists
+# MODEL - Add hidden dim if not exists
 if not hasattr(cfg.MODEL, 'HIDDEN_DIM'):
-    cfg.MODEL.HIDDEN_DIM = 768  # For vit_base (CLS token dimension)
-if not hasattr(cfg.MODEL, 'BOTTLENECK_DIM'):
-    cfg.MODEL.BOTTLENECK_DIM = 256  # Bottleneck dimension for fusion layer
+    cfg.MODEL.HIDDEN_DIM = 768  # For vit_base backbone feature dimension
 
 # TRAINING - Classification
 cfg.TRAIN.CLS_WEIGHT = 1.0  # Weight for classification loss

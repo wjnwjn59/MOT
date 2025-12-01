@@ -35,8 +35,7 @@ MODEL:
   EXTRA_MERGER: False
   RETURN_INTER: False
   MAX_MEM: 150
-  HIDDEN_DIM: 768  # CLS token dimension from ViT backbone
-  BOTTLENECK_DIM: 256  # Fusion layer output dimension
+  HIDDEN_DIM: 768  # Feature dimension from ViT backbone (shared by both heads)
   BACKBONE:
     TYPE: vit_base_patch16_224_ce
     STRIDE: 16

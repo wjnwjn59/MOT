@@ -1,0 +1,1 @@
+python tracking/test.py simtrack baseline_got10k_only_50e_64bs --dataset got10k_test --threads 2 --num_gpus 2

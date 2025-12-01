@@ -1,5 +1,5 @@
 """
-HIPTrack model with auxiliary classification branch
+HIPTrack model with auxiliary classification head for multi-task learning
 """
 import torch
 from torch import nn
@@ -10,8 +10,9 @@ import os
 
 class HIPTrackCls(HIPTrack):
     """
-    HIPTrack with auxiliary classification branch
-    Classification branch is only used during training
+    HIPTrack with auxiliary classification head for multi-task learning.
+    Both tasks (tracking and classification) share the same backbone features.
+    Classification branch is only used during training.
     """
     
     def __init__(self, transformer, box_head, cls_head, 
@@ -53,116 +54,19 @@ class HIPTrackCls(HIPTrack):
         for param in self.cls_head.parameters():
             param.requires_grad = False
     
-    def forward_classification(self, cls_token):
+    def forward_classification(self, features):
         """
-        Forward pass for classification branch using CLS token
+        Forward pass for classification branch
         
         Args:
-            cls_token: CLS token from ViT backbone [B, C]
+            features: Pooled features from search region [B, C]
         Returns:
-            dict: {
-                'cls_logits': [B, num_classes],
-                'cls_features': [B, hidden_dim],
-                'fusion_features': [B, bottleneck_dim]
-            }
+            cls_logits: Classification logits [B, num_classes]
         """
         if not self.use_cls_branch:
             return None
         
-        # Classification head returns dict with logits, features, and fusion
-        cls_output = self.cls_head(cls_token)
-        return cls_output
-    
-    def _get_template_search_indices(self, Ht, Wt, has_cls_token=True):
-        """
-        Get correct indices for template and search features
-        
-        Args:
-            Ht, Wt: Template height and width
-            has_cls_token: Whether CLS token is present
-        
-        Returns:
-            tuple: (template_start, template_end, search_start)
-        """
-        num_template_patches = (Ht // 16) ** 2
-        
-        if has_cls_token:
-            # Format: [CLS, template, search]
-            template_start = 1
-            template_end = 1 + num_template_patches
-            search_start = 1 + num_template_patches
-        else:
-            # Format: [template, search]
-            template_start = 0
-            template_end = num_template_patches
-            search_start = num_template_patches
-        
-        return template_start, template_end, search_start
-    
-    def _extract_features_with_cls(self, x, Ht, Wt):
-        """
-        Extract template and search features when CLS token is present
-        
-        Args:
-            x: Backbone output [B, 1+HW_t+HW_s, C] with CLS token at position 0
-            Ht, Wt: Template height and width
-        
-        Returns:
-            tuple: (template_features, search_features) without CLS token
-        """
-        # When add_cls_token=True, sequence is: [CLS, template_patches, search_patches]
-        # CLS token at index 0
-        # Template: indices 1 to 1+(Ht//16)^2
-        # Search: indices 1+(Ht//16)^2 to end
-        
-        template_start, template_end, search_start = self._get_template_search_indices(Ht, Wt, has_cls_token=True)
-        
-        # Extract without CLS token
-        template_feat = x[:, template_start:template_end, :]  # [B, HW_t, C]
-        search_feat = x[:, search_start:, :]                   # [B, HW_s, C]
-        
-        return template_feat, search_feat
-    
-    def _extract_cls_and_fuse(self, backbone_feat, cat_feature):
-        """
-        Extract CLS token, get classification output, and apply fusion
-        
-        Args:
-            backbone_feat: Full backbone output [B, 1+HW_t+HW_s, C] with CLS token at pos 0
-            cat_feature: Search features for box head [2, B, HW, C]
-        
-        Returns:
-            tuple: (cls_output_dict, fused_cat_feature)
-        """
-        if not self.use_cls_branch:
-            return None, cat_feature
-        
-        # Extract CLS token at position 0
-        cls_token = backbone_feat[:, 0, :]  # [B, C]
-        
-        # Get classification output with fusion features
-        cls_output = self.forward_classification(cls_token)
-        
-        # Apply fusion to cat_feature if available
-        if cls_output is not None and 'fusion_features' in cls_output:
-            fusion_feat = cls_output['fusion_features']  # [B, bottleneck_dim]
-            
-            # Add fusion as residual to both original and dynamic features
-            # cat_feature: [2, B, HW, C]
-            _, B, HW, C = cat_feature.shape
-            
-            # Expand fusion to match spatial dimensions
-            fusion_expanded = fusion_feat.unsqueeze(1).expand(-1, HW, -1)  # [B, HW, C]
-            
-            # Add residual to both streams if dimensions match
-            if fusion_expanded.shape[-1] == cat_feature.shape[-1]:
-                fused_cat_feature = cat_feature + fusion_expanded.unsqueeze(0)
-            else:
-                fused_cat_feature = cat_feature
-        else:
-            fused_cat_feature = cat_feature
-        
-        return cls_output, fused_cat_feature
+        return self.cls_head(features)
     
     def forward(self, template: torch.Tensor,
                 search: list,
@@ -174,15 +78,25 @@ class HIPTrackCls(HIPTrack):
                 gtBoxes=None,
                 previousBoxes=None,
                 template_boxes=None,
-                cls_labels=None  # NEW: classification labels
+                cls_labels=None
                 ):
         """
-        Forward pass with classification (SimTrackMod architecture)
+        Forward pass with multi-task learning (tracking + classification)
         
-        Additional Args:
-            cls_labels: Classification labels [num_search_frames, batch]
+        Args:
+            template: Template image [B, 3, H_t, W_t]
+            search: List of search images [5 x [B, 3, H_s, W_s]]
+            cls_labels: Classification labels [5, B] (one per search frame)
+            ... (other args same as parent)
+        
+        Returns:
+            outputs: List of dicts, each containing:
+                - pred_boxes: Bounding box predictions
+                - score_map: Score maps
+                - cls_logits: Classification predictions (if use_cls_branch)
+                - backbone_feat: Backbone features
         """
-        # Call parent forward for tracking
+        # Call parent forward for tracking predictions
         outputs = super().forward(
             template=template,
             search=search,
@@ -199,29 +113,26 @@ class HIPTrackCls(HIPTrack):
         # Add classification predictions if enabled
         if self.use_cls_branch and cls_labels is not None:
             B, _, Ht, Wt = template.shape
+            num_template_patches = (Ht // 16) ** 2
             
             for out in outputs:
-                # Extract search features from backbone output
-                # backbone_feat shape: [B, HW_template+HW_search, C] (no CLS token for now)
-                search_feat = out['backbone_feat']
+                # Extract backbone features (already computed by parent)
+                backbone_feat = out['backbone_feat']  # [B, HW_template+HW_search, C]
                 
-                # Extract search region features (skip template patches)
-                num_template_patches = (Ht // 16) ** 2
-                search_only_feat = search_feat[:, num_template_patches:, :]  # [B, HW_search, C]
+                # Extract search region features only (skip template patches)
+                search_feat = backbone_feat[:, num_template_patches:, :]  # [B, HW_search, C]
                 
-                # Create global feature via mean pooling (simulates CLS token)
-                # SimTrackMod uses CLS token, we approximate with mean pooling
-                global_feat = search_only_feat.mean(dim=1)  # [B, C]
+                # Global pooling: average over spatial dimensions
+                # This creates a single feature vector per sample
+                global_feat = search_feat.mean(dim=1)  # [B, C]
                 
-                # Get classification prediction
-                cls_output = self.forward_classification(global_feat)
+                # Get classification prediction using the same features as bbox
+                cls_logits = self.forward_classification(global_feat)
                 
                 # Add to output dict
-                if cls_output is not None:
-                    out['cls_logits'] = cls_output['cls_logits']
-                    out['cls_features'] = cls_output['cls_features']
-                    out['fusion_features'] = cls_output['fusion_features']
-            
+                if cls_logits is not None:
+                    out['cls_logits'] = cls_logits
+        
         return outputs
     
     def forward_track(self, index: int, template: torch.Tensor, 
@@ -254,80 +165,10 @@ class HIPTrackCls(HIPTrack):
         
         return out
 
-    def forward_head(self, cat_feature, gt_score_map=None, return_topk_boxes=False, fusion_features=None):
-        """
-        Forward head with optional fusion from classification branch
-        
-        Args:
-            cat_feature: [2, B, HW, C] - original and dynamic search features
-            fusion_features: [B, C'] - fusion features from classification branch
-        """
-        from lib.utils.box_ops import box_xyxy_to_cxcywh
-        
-        _, B, HW, C = cat_feature.shape
-        H = int(HW ** 0.5)
-        W = H
-        
-        originSearch = cat_feature[0].view(B, H, W, C).permute(0, 3, 1, 2)
-        dynamicSearch = cat_feature[1].view(B, H, W, C).permute(0, 3, 1, 2)
-        
-        # Fuse original and dynamic search features
-        fused_search = self.searchRegionFusion(originSearch + dynamicSearch)  # [B, C, H, W]
-        
-        # If classification fusion features available, apply residual connection
-        if fusion_features is not None and self.use_cls_branch:
-            # Expand fusion features to spatial dimensions and add as residual
-            # fusion_features: [B, C'] where C' should match C (bottleneck_dim)
-            fusion_spatial = fusion_features.unsqueeze(-1).unsqueeze(-1)  # [B, C', 1, 1]
-            fusion_spatial = fusion_spatial.expand(-1, -1, H, W)  # [B, C', H, W]
-            
-            # Residual connection (SimTrackMod style)
-            # Assuming C' = C (both are bottleneck_dim = 256)
-            if fusion_spatial.shape[1] == fused_search.shape[1]:
-                fused_search = fused_search + fusion_spatial
-        
-        enc_opt = fused_search.view(B, C, HW).permute(0, 2, 1)  # [B, HW, C]
-        
-        # Prepare for box head
-        opt = (enc_opt.unsqueeze(-1)).permute((0, 3, 2, 1)).contiguous()
-        bs, Nq, C, HW = opt.size()
-        opt_feat = opt.view(-1, C, self.feat_sz_s, self.feat_sz_s)
-
-        if self.head_type == "CORNER":
-            # run the corner head
-            pred_box, score_map = self.box_head(opt_feat, True)
-            outputs_coord = box_xyxy_to_cxcywh(pred_box)
-            outputs_coord_new = outputs_coord.view(bs, Nq, 4)
-            out = {'pred_boxes': outputs_coord_new,
-                   'score_map': score_map,
-                   }
-            return out
-
-        elif self.head_type == "CENTER":
-            score_map_ctr, bbox, size_map, offset_map, topkBbox = self.box_head(opt_feat, gt_score_map, return_topk_boxes)
-            outputs_coord = bbox 
-            outputs_coord_new = outputs_coord.view(bs, Nq, 4)
-            if return_topk_boxes:
-                out = {'pred_boxes': outputs_coord_new,
-                       'score_map': score_map_ctr,
-                       'size_map': size_map,
-                       'offset_map': offset_map,
-                       'topk_pred_boxes': topkBbox,
-                    }
-            else:
-                out = {'pred_boxes': outputs_coord_new,
-                       'score_map': score_map_ctr,
-                       'size_map': size_map,
-                       'offset_map': offset_map,
-                    }
-            return out
-        else:
-            raise NotImplementedError
-
 
 def build_hiptrack_cls(cfg, training=True):
     """
-    Build HIPTrack model with classification branch
+    Build HIPTrack model with classification head
     """
     from lib.models.hiptrack.vit import vit_base_patch16_224
     from lib.models.hiptrack.vit_ce import (
@@ -378,7 +219,7 @@ def build_hiptrack_cls(cfg, training=True):
     # Build box head
     box_head = build_box_head(cfg, hidden_dim)
     
-    # Build classification head
+    # Build classification head (shares same feature dimension as backbone)
     cls_head = build_cls_head(cfg)
     
     # Build model
@@ -410,4 +251,3 @@ def build_hiptrack_cls(cfg, training=True):
         print(f'Unexpected keys: {unexpected_keys}')
     
     return model
-

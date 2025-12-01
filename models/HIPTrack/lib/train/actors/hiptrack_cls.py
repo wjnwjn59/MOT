@@ -113,11 +113,11 @@ class HIPTrackClsActor(HIPTrackActor):
         Compute classification loss and accuracy
         
         Args:
-            logits: [B, num_classes]
-            labels: [B]
+            logits: [B, num_classes] - classification logits
+            labels: [B] - ground truth class labels
         Returns:
-            loss: scalar tensor
-            accuracy: float
+            loss: scalar tensor - classification loss
+            accuracy: float - classification accuracy
         """
         # Convert labels to tensor if needed
         if not isinstance(labels, torch.Tensor):
@@ -125,12 +125,12 @@ class HIPTrackClsActor(HIPTrackActor):
         else:
             labels = labels.to(logits.device)
         
-        # Filter out ignore index (-100)
+        # Filter out ignore index (-100) for missing annotations
         valid_mask = labels != -100
         
         if valid_mask.sum() == 0:
             # No valid labels, return zero loss
-            return torch.tensor(0.0, device=logits.device), 0.0
+            return torch.tensor(0.0, device=logits.device, requires_grad=True), 0.0
         
         # Compute loss only on valid labels
         valid_logits = logits[valid_mask]

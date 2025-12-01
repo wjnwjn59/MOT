@@ -1,0 +1,2 @@
+python3 tracking/train.py --script simtrack --config baseline_got10k_only_50e_64bs --save . --mode multiple --nproc_per_node 2
+
