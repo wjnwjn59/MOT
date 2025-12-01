@@ -1,1 +1,1 @@
-python finetune_classification.py --data_dir /home/thinhnp/MOT/data/train_maritime_env_clf_annts --batch_size 32 --freeze_backbone --epochs 10 --lr 1e-4 --save_dir ./checkpoints/maritime_classification 
+python finetune.py --data_dir ../../data/train_cls/train_maritime_env_clf_annts --batch_size 64 --epochs 50 --lr 1e-4 --save_dir ./checkpoints/maritime_classification --pretrained_weights ../pretrained/SimTrack/sim-vit-b-16.pth --train_cls_head --val_split 0.1 --max_samples 500

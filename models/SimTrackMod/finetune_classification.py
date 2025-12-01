@@ -50,7 +50,7 @@ class MaritimeClassificationDataset(Dataset):
         self.samples = []
         self.class_mapping = self._build_class_mapping()
         self._load_annotations()
-        
+        print("Data path: ", self.data_dir)
         print(f"Loaded {len(self.samples)} samples from {len(os.listdir(data_dir))} sequences")
         print(f"Class mapping: {self.class_mapping}")
         
@@ -152,11 +152,11 @@ class MaritimeClassificationDataset(Dataset):
         
         # Load search image
         search_img_path = os.path.join(
+            "../..",
             sample['dataset_path'], 
             sample['sequence_name'], 
             sample['frame_file']
         )
-        
         if not os.path.exists(search_img_path):
             # Fallback: use template as search (for testing)
             print(f"Warning: Search image not found {search_img_path}, using template")
@@ -478,12 +478,12 @@ def main():
                        default='./checkpoints/classification',
                        help='Directory to save checkpoints')
     parser.add_argument('--batch_size', type=int, default=8, help='Batch size')
-    parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
+    parser.add_argument('--epochs', type=int, default=20, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
     parser.add_argument('--max_samples', type=int, default=500, 
                        help='Max samples per sequence')
-    parser.add_argument('--val_split', type=float, default=0.2, help='Validation split ratio')
+    parser.add_argument('--val_split', type=float, default=0.1, help='Validation split ratio')
     parser.add_argument('--freeze_backbone', action='store_true', 
                        help='Freeze backbone parameters during training')
     

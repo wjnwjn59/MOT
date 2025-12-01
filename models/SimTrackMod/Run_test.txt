@@ -1,1 +1,1 @@
-python run_inference_all.py --checkpoint ./checkpoints/maritime_classification/simtrack_classification_best.pth.tar --test_data ../../data/MVTD/test --output ./output/test/tracking_results --device cuda
+python run_inference_all.py --checkpoint ./checkpoints/maritime_classification/maritime_simtrackcls_joint_20251201_0545/simtrack_finetune_best.pth.tar --test_data ../../data/test --output ./output/test/tracking_results/maritime_simtrackcls_joint_20251201_0545 --device cuda --use_cls

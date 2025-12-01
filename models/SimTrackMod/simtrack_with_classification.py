@@ -338,7 +338,7 @@ def unit_test():
     model = build_simtrack_with_classification(cfg, num_classes=10, hidden_dim=512)
     
     # Load pretrained weights
-    weight_path = "./models/SimTrackMod/checkpoints/sim-vit-b-16.pth"
+    weight_path = "../pretrained/SimTrack/sim-vit-b-16.pth"
     print(f"Loading weights from {weight_path}...")
     model = load_pretrained_weights(model, weight_path, strict=False)
     
