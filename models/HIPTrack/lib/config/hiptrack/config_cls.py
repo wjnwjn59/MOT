@@ -38,8 +38,8 @@ cfg.TRAIN.STAGE2_LR = 1e-5  # Stage 2 learning rate (lower for fine-tuning)
 cfg.TRAIN.FREEZE_BACKBONE_STAGE1 = True  # Freeze backbone in stage 1
 
 # DATA - Classification annotations
-cfg.DATA.TRAIN.CLS_ANN_DIR = "../../data/train_maritime_env_clf_annts"  # Classification annotation directory
-cfg.DATA.VAL.CLS_ANN_DIR = "../../data/train_maritime_env_clf_annts"  # Validation annotation directory
+cfg.DATA.TRAIN.CLS_ANN_DIR = "../../data/train_cls/train_maritime_env_clf_annts"  # Classification annotation directory
+cfg.DATA.VAL.CLS_ANN_DIR = "../../data/train_cls/train_maritime_env_clf_annts"  # Validation annotation directory
 
 
 def _edict2dict(dest_dict, src_edict):

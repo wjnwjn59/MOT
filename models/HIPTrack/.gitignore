@@ -162,4 +162,3 @@ cython_debug/
 ./data/
 *.pdf
 *.mp4
-local.py

@@ -26,7 +26,7 @@ def parameters(yaml_name: str):
     params.search_size = cfg.TEST.SEARCH_SIZE
 
     # Network checkpoint path
-    params.checkpoint = os.path.join(save_dir, "checkpoints/train/hiptrack/%s/HIPTrack_ep%04d.pth.tar" %
+    params.checkpoint = os.path.join(save_dir, "checkpoints/train/hiptrack/%s/HIPTrackCls_ep%04d.pth.tar" %
                                      (yaml_name, cfg.TEST.EPOCH))
 
     # whether to save boxes from all queries

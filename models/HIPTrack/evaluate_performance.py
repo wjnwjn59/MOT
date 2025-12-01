@@ -18,42 +18,67 @@ from lib.test.evaluation.datasets import get_dataset
 from lib.test.evaluation.tracker import trackerlist
 from lib.test.evaluation.environment import env_settings
 
+import os
+import shutil
+from pathlib import Path
+
 def prepare_results_for_framework(source_dir, temp_dir):
     """
     Copy and rename result files to match framework expectations.
-    Your structure: source_dir/sequence_name/sequence_name_001.txt
-    Framework expects: temp_dir/sequence_name.txt
+
+    Old structure:
+      source_dir/sequence_name/sequence_name_001.txt
+    New structure (your screenshot):
+      source_dir/1-Boat.txt, source_dir/1-Boat_time.txt, ...
+
+    Framework expects:
+      temp_dir/<sequence_name>.txt   (no *_time.txt)
     """
     print("Preparing results for framework evaluation...")
-    
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
-    
-    sequence_dirs = [d for d in os.listdir(source_dir) 
-                    if os.path.isdir(os.path.join(source_dir, d))]
-    
+
+    source_dir = Path(source_dir)
+    temp_dir = Path(temp_dir)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
     copied_count = 0
-    for seq_dir in sequence_dirs:
-        seq_path = os.path.join(source_dir, seq_dir)
-        
-        # Find the result file (usually sequence_name_001.txt)
-        result_files = [f for f in os.listdir(seq_path) 
-                       if f.endswith('_001.txt') and not f.endswith('_time.txt')]
-        
-        if result_files:
-            # Take the first result file
-            source_file = os.path.join(seq_path, result_files[0])
-            target_file = os.path.join(temp_dir, f"{seq_dir}.txt")
-            
-            # Copy the file
-            shutil.copy2(source_file, target_file)
+
+    # --- 1) New structure: flat files in source_dir ---
+    flat_result_files = [
+        p for p in source_dir.glob("*.txt")
+        if p.is_file() and not p.name.endswith("_time.txt")
+    ]
+
+    for src in sorted(flat_result_files):
+        seq_name = src.stem  # "1-Boat" from "1-Boat.txt"
+        dst = temp_dir / f"{seq_name}.txt"
+        shutil.copy2(src, dst)
+        copied_count += 1
+        print(f"  ✅ {seq_name}: {src.name} -> {dst.name}")
+
+    # --- 2) Fallback: Old structure with per-sequence subfolders ---
+    if copied_count == 0:
+        sequence_dirs = [d for d in source_dir.iterdir() if d.is_dir()]
+
+        for seq_path in sorted(sequence_dirs):
+            seq_name = seq_path.name
+
+            result_files = sorted(
+                [p for p in seq_path.glob("*.txt") if not p.name.endswith("_time.txt")]
+            )
+
+            if not result_files:
+                print(f"  ❌ {seq_name}: No result file found")
+                continue
+
+            src = result_files[0]
+            dst = temp_dir / f"{seq_name}.txt"
+            shutil.copy2(src, dst)
             copied_count += 1
-            print(f"  ✅ {seq_dir}: {result_files[0]} -> {seq_dir}.txt")
-        else:
-            print(f"  ❌ {seq_dir}: No result file found")
-    
+            print(f"  ✅ {seq_name}: {src.name} -> {dst.name}")
+
     print(f"Prepared {copied_count} result files")
     return copied_count
+
 
 def main():
     """Main function to evaluate SimTrack performance"""
@@ -63,7 +88,9 @@ def main():
     print("=" * 60)
     
     # Configuration
-    original_results_dir = "./SimTrackMod/output/test/tracking_results/maritime_simtrackcls_joint_20251201_0545"
+    original_results_dir = "/home/vli/thangdd_workspace/MOT/models/HIPTrack/output/test/tracking_results/hiptrack/hiptrack/got10k"
+    parameter_name = original_results_dir.split("/")[-2]
+
     
     try:
         # Load dataset - try both val and test splits
@@ -106,15 +133,15 @@ def main():
             # Create tracker list for SimTrack
             print("\nSetting up tracker...")
             
-            tracker_name = 'simtrack'
-            parameter_name = 'baseline_cls_finetune'
+            tracker_name = 'hiptrack_cls'
+            # parameter_name = 'baseline_got10k_only_50e_64bs'
             
             trackers = trackerlist(
                 name=tracker_name,
                 parameter_name=parameter_name,
                 dataset_name='got10k',
                 run_ids=None,
-                display_name='SimTrack',
+                display_name='HIPTrackCls',
                 result_only=True
             )
             
@@ -127,7 +154,7 @@ def main():
             # Evaluate using the framework's evaluation functions
             print("\nEvaluating performance using official framework...")
             
-            report_name = f"simtrack_{parameter_name}_{dataset_split}_evaluation"
+            report_name = f"hiptrack_{parameter_name}_{dataset_split}_evaluation"
             
             # Use the framework's print_results function
             print_results(

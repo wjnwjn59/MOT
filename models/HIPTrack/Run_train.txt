@@ -1,1 +1,1 @@
-python3 tracking/train.py --script hiptrack --config hiptrack_got --save_dir . --mode single
+python3 tracking/train.py --script hiptrack --config hiptrack_cls --save_dir . --mode single

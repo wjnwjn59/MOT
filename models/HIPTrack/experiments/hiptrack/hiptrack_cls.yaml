@@ -26,12 +26,12 @@ DATA:
     - GOT10K_train_full
     DATASETS_RATIO:
     - 1
-    SAMPLE_PER_EPOCH: 60000
-    CLS_ANN_DIR: "../../data/train_maritime_env_clf_annts"
+    SAMPLE_PER_EPOCH: 10000
+    CLS_ANN_DIR: "/home/vli/thangdd_workspace/MOT/data/train_cls/train_maritime_env_clf_annts"
 
 MODEL:
   NEW_HIP: True
-  PRETRAIN_FILE: "DropTrack_k700_800E_got10k.pth.tar"
+  PRETRAIN_FILE: "../pretrained/HipTrack/HIPTrack_got10k.pth.tar"
   EXTRA_MERGER: False
   RETURN_INTER: False
   MAX_MEM: 150
@@ -54,8 +54,8 @@ MODEL:
 TRAIN:
   BACKBONE_MULTIPLIER: 0.1
   DROP_PATH_RATE: 0.1
-  BATCH_SIZE: 2
-  EPOCH: 100
+  BATCH_SIZE: 16
+  EPOCH: 1
   GIOU_WEIGHT: 2.0
   L1_WEIGHT: 5.0
   GRAD_CLIP_NORM: 0.1
@@ -74,22 +74,22 @@ TRAIN:
   CE_WARM_EPOCH: 80
   FREEZE_LAYERS: [0]
   # Classification specific (SimTrackMod architecture)
-  CLS_WEIGHT: 1.0  # Weight for classification loss
+  CLS_WEIGHT: 0.1  # Weight for classification loss
   CLS_LOSS_TYPE: "CE"  # Options: CE, FOCAL, LABEL_SMOOTH
   CLS_FOCAL_ALPHA: 0.25
   CLS_FOCAL_GAMMA: 2.0
   CLS_LABEL_SMOOTHING: 0.1
   FREEZE_CLS_EPOCH: -1  # Freeze cls branch after this epoch (-1 = never)
   # Two-stage training (SimTrackMod strategy)
-  TWO_STAGE: False  # Set to True to enable two-stage training
+  TWO_STAGE: True  # Set to True to enable two-stage training
   STAGE1_EPOCHS: 30  # Stage 1: freeze backbone, train cls head only
-  STAGE1_LR: 1e-3  # Higher LR for classification head training
-  STAGE2_EPOCHS: 20  # Stage 2: fine-tune entire model
-  STAGE2_LR: 1e-5  # Lower LR for full model fine-tuning
+  STAGE1_LR: 0.001  # Higher LR for classification head training
+  STAGE2_EPOCHS: 1  # Stage 2: fine-tune entire model
+  STAGE2_LR: 0.0001  # Lower LR for full model fine-tuning
   FREEZE_BACKBONE_STAGE1: True  # Freeze backbone in stage 1
 
 TEST:
-  EPOCH: 96
+  EPOCH: 1
   SEARCH_FACTOR: 5.0
   SEARCH_SIZE: 384
   TEMPLATE_FACTOR: 2.0

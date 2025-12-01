@@ -23,6 +23,7 @@ class HIPTrack(BaseTracker):
         super(HIPTrack, self).__init__(params)
         network = build_hiptrack(params.cfg, training=False)
         network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu')['net'], strict=True)
+        # network.load_state_dict(torch.load("/home/vli/thangdd_workspace/MOT/models/pretrained/HipTrack/HIPTrack_all_data.pth.tar", map_location='cpu')['net'], strict=True)
         self.cfg = params.cfg
         self.network = network.cuda()
         self.network.eval()

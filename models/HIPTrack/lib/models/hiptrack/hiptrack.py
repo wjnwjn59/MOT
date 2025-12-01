@@ -507,7 +507,7 @@ class HIPTrack(nn.Module):
 
 def build_hiptrack(cfg, training=True):
     current_dir = os.path.dirname(os.path.abspath(__file__))  # This is your Project Root
-    pretrained_path = os.path.join(current_dir, '../../../pretrained_models')
+    pretrained_path = os.path.join(current_dir, '../../..')
     if cfg.MODEL.PRETRAIN_FILE and ('HIPTrack' not in cfg.MODEL.PRETRAIN_FILE and 'DropTrack' not in cfg.MODEL.PRETRAIN_FILE) and training:
         pretrained = os.path.join(pretrained_path, cfg.MODEL.PRETRAIN_FILE)
     else:
@@ -553,7 +553,7 @@ def build_hiptrack(cfg, training=True):
     )
 
     if ('HIPTrack' in cfg.MODEL.PRETRAIN_FILE or 'DropTrack' in cfg.MODEL.PRETRAIN_FILE) and training:
-        pretrained_path = os.path.join(current_dir, '../../../pretrained_models', cfg.MODEL.PRETRAIN_FILE)
+        pretrained_path = os.path.join(current_dir, '../../..', cfg.MODEL.PRETRAIN_FILE)
         checkpoint = torch.load(pretrained_path, map_location="cpu")
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint["net"], strict=False)
         print('Load pretrained model from: ' + cfg.MODEL.PRETRAIN_FILE)

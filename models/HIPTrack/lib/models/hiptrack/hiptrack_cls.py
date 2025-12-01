@@ -337,7 +337,7 @@ def build_hiptrack_cls(cfg, training=True):
     from lib.models.layers.head import build_box_head
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    pretrained_path = os.path.join(current_dir, '../../../pretrained_models')
+    pretrained_path = os.path.join(current_dir, '../../..')
     
     # Build backbone
     if cfg.MODEL.PRETRAIN_FILE and ('HIPTrack' not in cfg.MODEL.PRETRAIN_FILE) and training:
@@ -397,7 +397,7 @@ def build_hiptrack_cls(cfg, training=True):
     # Load pretrained weights if specified
     if 'HIPTrack' in cfg.MODEL.PRETRAIN_FILE and training:
         pretrained_full_path = os.path.join(
-            current_dir, '../../../pretrained_models', 
+            current_dir, '../../..', 
             cfg.MODEL.PRETRAIN_FILE
         )
         checkpoint = torch.load(pretrained_full_path, map_location="cpu")
