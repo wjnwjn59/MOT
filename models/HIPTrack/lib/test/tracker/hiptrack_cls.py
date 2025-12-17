@@ -18,7 +18,7 @@ class HIPTrackCls(HIPTrack):
         network.load_state_dict(checkpoint['net'], strict=False)
         
         # Disable classification branch
-        network.disable_cls_branch()
+        network.disable_cls_head()
         
         # Set up the network
         self.cfg = params.cfg

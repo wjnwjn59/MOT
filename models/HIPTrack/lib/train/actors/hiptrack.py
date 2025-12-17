@@ -57,6 +57,7 @@ class HIPTrackActor(BaseActor):
                         statuses[key] += val
             
             statuses['IoU'] = statuses['IoU'] / len(out_dict)
+
             return losses, statuses
 
         # compute losses
@@ -175,6 +176,8 @@ class HIPTrackActor(BaseActor):
         gt_boxes_vec = box_xywh_to_xyxy(gt_bbox)[:, None, :].repeat((1, num_queries, 1)).view(-1, 4).clamp(min=0.0,
                                                                                                            max=1.0)  # (B,4) --> (B,1,4) --> (B,N,4)
         # compute giou and iou
+        # print("Prediction: ", pred_boxes_vec)   
+        # print("GT: ", gt_boxes_vec)
         try:
             giou_loss, iou = self.objective['giou'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
         except:

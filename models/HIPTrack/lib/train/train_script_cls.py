@@ -159,7 +159,7 @@ def build_dataloaders_cls(cfg, settings):
                                     tfm.RandomHorizontalFlip(probability=0.5))
 
     transform_train = tfm.Transform(tfm.ToTensorAndJitter(0.2),
-                                    tfm.RandomHorizontalFlip(probability=0.5),
+                                    tfm.RandomHorizontalFlip_Norm(probability=0.5),
                                     tfm.Normalize(mean=cfg.DATA.MEAN, std=cfg.DATA.STD))
 
     transform_val = tfm.Transform(tfm.ToTensor(),
@@ -176,7 +176,8 @@ def build_dataloaders_cls(cfg, settings):
                                                       mode='sequence',
                                                       transform=transform_train,
                                                       joint_transform=transform_joint,
-                                                      settings=settings)
+                                                      settings=settings,
+                                                      num_prev=0)
 
     data_processing_val = processing.STARKProcessing(search_area_factor=search_area_factor,
                                                     output_sz=output_sz,
@@ -185,7 +186,8 @@ def build_dataloaders_cls(cfg, settings):
                                                     mode='sequence',
                                                     transform=transform_val,
                                                     joint_transform=transform_joint,
-                                                    settings=settings)
+                                                    settings=settings,
+                                                    num_prev=0)
 
     # Train sampler and loader
     settings.num_template = getattr(cfg.DATA.TEMPLATE, "NUMBER", 1)

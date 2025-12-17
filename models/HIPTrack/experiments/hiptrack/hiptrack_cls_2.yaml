@@ -54,7 +54,7 @@ TRAIN:
   BACKBONE_MULTIPLIER: 0.1
   DROP_PATH_RATE: 0.1
   BATCH_SIZE: 16
-  EPOCH: 5
+  EPOCH: 1
   GIOU_WEIGHT: 2.0
   L1_WEIGHT: 5.0
   GRAD_CLIP_NORM: 0.1
@@ -73,7 +73,7 @@ TRAIN:
   CE_WARM_EPOCH: 80
   FREEZE_LAYERS: [0]
   # Classification specific (SimTrackMod architecture)
-  CLS_WEIGHT: 0.5  # Weight for classification loss
+  CLS_WEIGHT: 0.1  # Weight for classification loss
   CLS_LOSS_TYPE: "CE"  # Options: CE, FOCAL, LABEL_SMOOTH
   CLS_FOCAL_ALPHA: 0.25
   CLS_FOCAL_GAMMA: 2.0
@@ -88,7 +88,7 @@ TRAIN:
   # FREEZE_BACKBONE_STAGE1: True  # Freeze backbone in stage 1
 
 TEST:
-  EPOCH: 5
+  EPOCH: 1
   SEARCH_FACTOR: 5.0
   SEARCH_SIZE: 384
   TEMPLATE_FACTOR: 2.0

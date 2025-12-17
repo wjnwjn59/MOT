@@ -557,5 +557,7 @@ def build_hiptrack(cfg, training=True):
         checkpoint = torch.load(pretrained_path, map_location="cpu")
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint["net"], strict=False)
         print('Load pretrained model from: ' + cfg.MODEL.PRETRAIN_FILE)
+        print('Missing keys (expected for new cls_head):', missing_keys)
+        print('Unexpected keys:', unexpected_keys)
 
     return model

@@ -86,7 +86,7 @@ class HIPTrackClsActor(HIPTrackActor):
             statuses['IoU'] = statuses['IoU'] / len(out_dict)
             if statuses['Accuracy'] is not None:
                 statuses['Accuracy'] = statuses['Accuracy'] / len(out_dict)
-            
+
             return losses, statuses
         
         else:
@@ -206,7 +206,7 @@ class HIPTrackClsActor(HIPTrackActor):
             return_last_attn=False,
             template_boxes=template_annos,
             gtBoxes=data['search_anno'],
-            cls_labels=cls_labels
+            # cls_labels=cls_labels
         )
         
         return out_dict

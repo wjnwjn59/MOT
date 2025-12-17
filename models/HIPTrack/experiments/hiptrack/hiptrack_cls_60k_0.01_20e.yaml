@@ -27,21 +27,29 @@ DATA:
     DATASETS_RATIO:
     - 1
     SAMPLE_PER_EPOCH: 60000
+    CLS_ANN_DIR: "/home/vli/thangdd_workspace/MOT/data/train_cls/train_maritime_env_clf_annts"
 
 MODEL:
   NEW_HIP: True
   PRETRAIN_FILE: "../pretrained/HipTrack/HIPTrack_all_data.pth.tar"
   EXTRA_MERGER: False
   RETURN_INTER: False
+  MAX_MEM: 150
+  HIDDEN_DIM: 768  # Feature dimension from ViT backbone (shared by both heads)
   BACKBONE:
     TYPE: vit_base_patch16_224_ce
     STRIDE: 16
     CE_LOC: [3, 6, 9]
-    CE_KEEP_RATIO: [0.7, 0.7, 0.7]
-    CE_TEMPLATE_RANGE: 'CTR_POINT'  # choose between ALL, CTR_POINT, CTR_REC, GT_BOX
+    CE_KEEP_RATIO: [1, 1, 1]
+    CE_TEMPLATE_RANGE: 'CTR_POINT'
   HEAD:
     TYPE: CENTER
     NUM_CHANNELS: 256
+  CLS_HEAD:
+    NUM_CLASSES: 10  # Maritime tracking challenges
+    HIDDEN_DIM: 512  # Classification MLP hidden dimension
+    DROPOUT: 0.1  # SimTrackMod uses 0.1 dropout
+
 TRAIN:
   BACKBONE_MULTIPLIER: 0.1
   DROP_PATH_RATE: 0.1
@@ -64,9 +72,25 @@ TRAIN:
   CE_START_EPOCH: 20
   CE_WARM_EPOCH: 80
   FREEZE_LAYERS: [0]
+  # Classification specific (SimTrackMod architecture)
+  CLS_WEIGHT: 0.01  # Weight for classification loss
+  CLS_LOSS_TYPE: "CE"  # Options: CE, FOCAL, LABEL_SMOOTH
+  CLS_FOCAL_ALPHA: 0.25
+  CLS_FOCAL_GAMMA: 2.0
+  CLS_LABEL_SMOOTHING: 0.1
+  FREEZE_CLS_EPOCH: -1  # Freeze cls branch after this epoch (-1 = never)
+  # Two-stage training (SimTrackMod strategy)
+  # TWO_STAGE: True  # Set to True to enable two-stage training
+  # STAGE1_EPOCHS: 30  # Stage 1: freeze backbone, train cls head only
+  # STAGE1_LR: 0.001  # Higher LR for classification head training
+  # STAGE2_EPOCHS: 1  # Stage 2: fine-tune entire model
+  # STAGE2_LR: 0.0001  # Lower LR for full model fine-tuning
+  # FREEZE_BACKBONE_STAGE1: True  # Freeze backbone in stage 1
+
 TEST:
   EPOCH: 20
   SEARCH_FACTOR: 5.0
   SEARCH_SIZE: 384
   TEMPLATE_FACTOR: 2.0
   TEMPLATE_SIZE: 192
+

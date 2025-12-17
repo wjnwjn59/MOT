@@ -87,8 +87,11 @@ def main():
     print("SimTrack Performance Evaluation on MVTD Dataset")
     print("=" * 60)
     
+
     # Configuration
-    original_results_dir = "/home/vli/thangdd_workspace/MOT/models/HIPTrack/output/test/tracking_results/hiptrack/hiptrack/got10k"
+    # original_results_dir = "/home/vli/thangdd_workspace/MOT/models/HIPTrack/output/test/tracking_results/hiptrack/hiptrack_got/got10k"
+    original_results_dir = "/home/vli/thangdd_workspace/MOT/models/HIPTrack/output/test/tracking_results/hiptrack_cls/hiptrack_cls_60k_0.1_20e/got10k"
+    tracker_name = original_results_dir.split("/")[-3]
     parameter_name = original_results_dir.split("/")[-2]
 
     
@@ -133,15 +136,14 @@ def main():
             # Create tracker list for SimTrack
             print("\nSetting up tracker...")
             
-            tracker_name = 'hiptrack_cls'
-            # parameter_name = 'baseline_got10k_only_50e_64bs'
+            # tracker_name = 'hiptrack_cls'
             
             trackers = trackerlist(
                 name=tracker_name,
                 parameter_name=parameter_name,
                 dataset_name='got10k',
                 run_ids=None,
-                display_name='HIPTrackCls',
+                display_name='HIPTrack',
                 result_only=True
             )
             
