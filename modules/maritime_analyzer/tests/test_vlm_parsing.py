@@ -24,7 +24,21 @@ def test_aggregate_means_and_agreement_range():
     agg = aggregate_passes([p1, p2, None], ATTRS)
     assert abs(agg["occlusion"] - 0.6) < 1e-6
     assert abs(agg["severity"] - 0.6) < 1e-6
-    assert 0.0 <= agg["vlm_agreement"] <= 1.0
+    # agreement = 1 - 2*mean(std over attrs); only occlusion varies (std 0.2) -> 1 - 2*(0.2/4) = 0.9
+    assert abs(agg["vlm_agreement"] - 0.9) < 1e-6
+
+
+def test_aggregate_single_pass_full_agreement():
+    p = {"occlusion": 0.5, "background_clutter": 0.0, "specular_glare": 0.0,
+         "illumination_appearance_change": 0.0, "severity": 0.5}
+    agg = aggregate_passes([p], ATTRS)
+    assert agg["vlm_agreement"] == 1.0
+
+
+def test_parse_coerces_non_numeric_to_zero():
+    out = parse_vlm_json('{"occlusion": "high", "severity": 0.3}', ATTRS)
+    assert out["occlusion"] == 0.0   # non-numeric -> 0.0
+    assert out["severity"] == 0.3
 
 
 def test_aggregate_empty_is_zero():
