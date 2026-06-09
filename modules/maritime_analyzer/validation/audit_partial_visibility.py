@@ -44,7 +44,10 @@ def _load_old_records(ann_dir: Path) -> List[Dict]:
                 line = line.strip()
                 if not line:
                     continue
-                d = json.loads(line)
+                try:
+                    d = json.loads(line)
+                except json.JSONDecodeError:
+                    continue  # skip truncated/corrupt lines rather than aborting the whole audit
                 pv = d.get("vlm_response", {}).get("partial_visibility", {})
                 out.append({
                     "sequence_name": d.get("sequence_name", jf.parent.name),
@@ -64,10 +67,12 @@ def main():
     args = ap.parse_args()
     records = _load_old_records(Path(args.ann_dir))
 
+    ds_by_key = {(r["sequence_name"], r["frame_file"]): r["dataset_path"] for r in records}
     cache: Dict = {}
     def size_lookup(seq, frame_file):
-        ds = next((r["dataset_path"] for r in records
-                   if r["sequence_name"] == seq and r["frame_file"] == frame_file), "")
+        ds = ds_by_key.get((seq, frame_file), "")
+        if not ds:
+            raise ValueError(f"missing dataset_path for {seq}/{frame_file}; cannot resolve image size")
         key = (ds, seq, frame_file)
         if key not in cache:
             cache[key] = Image.open(Path(ds) / seq / frame_file).size
