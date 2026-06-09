@@ -185,9 +185,11 @@ def main():
     if args.worker:
         import random
         import numpy as np
+        import torch
         from modules.maritime_analyzer.vlm_analyzer import VLMAnalyzer, VLMConfig
         random.seed(args.seed)
         np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
         seq_names = [p.name for p in sequences]
         my_seqs = shard_sequences(seq_names, args.num_shards)[args.shard_index]
         vlm = VLMAnalyzer(VLMConfig(model_name=args.model, seed=args.seed))
