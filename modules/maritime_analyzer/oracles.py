@@ -24,6 +24,12 @@ def is_motion_blur(img, bbox: BBox, threshold: float = 100.0) -> bool:
 
 
 def is_out_of_frame(bbox: BBox, frame_size: Tuple[int, int], margin: int = 1) -> bool:
+    """True if the bbox touches/exceeds the frame border.
+
+    ``frame_size`` is ``(W, H)`` — width first — matching PIL ``Image.size``
+    (which is what the generation worker passes). Passing ``(H, W)`` would
+    silently mis-evaluate the vertical edges.
+    """
     W, H = frame_size
     x, y, w, h = bbox
     return bool(x <= margin or y <= margin or (x + w) >= (W - margin) or (y + h) >= (H - margin))

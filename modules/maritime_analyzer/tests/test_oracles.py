@@ -16,7 +16,13 @@ def test_is_motion_blur_true_for_uniform_false_for_checkerboard():
 def test_is_out_of_frame():
     assert o.is_out_of_frame((10, 10, 20, 20), (100, 100), margin=1) is False
     assert o.is_out_of_frame((0, 10, 20, 20), (100, 100), margin=1) is True   # touches left edge
-    assert o.is_out_of_frame((85, 10, 20, 20), (100, 100), margin=1) is True  # x+w >= W-1
+    assert o.is_out_of_frame((85, 10, 20, 20), (100, 100), margin=1) is True  # x+w exceeds frame
+    # exact right-edge boundary: out when x+w >= W-margin (99), inside one pixel before
+    assert o.is_out_of_frame((79, 10, 20, 20), (100, 100), margin=1) is True   # x+w == 99
+    assert o.is_out_of_frame((78, 10, 20, 20), (100, 100), margin=1) is False  # x+w == 98
+    # non-square frame: frame_size is (W, H); bottom edge uses H
+    assert o.is_out_of_frame((100, 462, 20, 20), (640, 480), margin=1) is True   # y+h=482 >= 479
+    assert o.is_out_of_frame((100, 100, 20, 20), (640, 480), margin=1) is False
 
 
 def test_highlight_ratio():
@@ -32,3 +38,4 @@ def test_compute_oracle_attributes_keys():
     for k in ["scale_variation", "low_resolution", "low_contrast", "motion_blur", "out_of_frame"]:
         assert k in out and out[k] in (0, 1)
     assert "highlight_ratio" in out["_features"]
+    assert "scale_ratio" in out["_features"]
