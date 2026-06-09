@@ -1,6 +1,8 @@
 from __future__ import annotations
 import argparse
 import json
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Set
@@ -9,6 +11,7 @@ from tqdm import tqdm
 
 from modules.maritime_analyzer.deterministic_utils import analyze_pair
 from modules.maritime_analyzer.vlm_analyzer import VLMAnalyzer, VLMConfig
+from modules.maritime_analyzer.taxonomy import oracle_attributes, vlm_attributes, SCHEMA_VERSION
 
 CLASSES = [
     "Occlusion",
@@ -149,6 +152,59 @@ def process_sequence_streaming(
             f.write('\n')
 
         pbar.set_postfix_str(f"done {frame_id}")
+
+def shard_sequences(seq_names, num_shards):
+    num_shards = max(1, int(num_shards))
+    shards = [[] for _ in range(num_shards)]
+    for i, s in enumerate(seq_names):
+        shards[i % num_shards].append(s)
+    return shards
+
+
+def plan_gpu_groups(gpus, tp):
+    tp = max(1, int(tp))
+    return [list(gpus[i:i + tp]) for i in range(0, len(gpus), tp)]
+
+
+def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, seed):
+    cmds = []
+    for shard_index, group in enumerate(gpu_groups[:num_shards]):
+        env = dict(os.environ)
+        env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in group)
+        argv = [sys.executable, "-m", "modules.maritime_analyzer.run",
+                "--worker",
+                "--shard-index", str(shard_index),
+                "--num-shards", str(num_shards),
+                "--dataset", dataset,
+                "--out-dir", out_dir,
+                "--model", model,
+                "--tp", str(tp),
+                "--seed", str(seed)]
+        cmds.append((env, argv))
+    return cmds
+
+
+def build_record(seq_name, frame_id, frame_file, template_bbox, gt_bbox,
+                 oracle_attrs, vlm_result, meta):
+    attributes = {}
+    for name in oracle_attributes():
+        attributes[name] = {"prob": float(oracle_attrs[name]), "source": "oracle"}
+    for name in vlm_attributes():
+        attributes[name] = {"prob": float(vlm_result.get(name, 0.0)), "source": "vlm"}
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "sequence_name": seq_name,
+        "frame_id": frame_id,
+        "frame_file": frame_file,
+        "template_bbox": list(map(float, template_bbox)),
+        "ground_truth_bbox": list(map(float, gt_bbox)),
+        "attributes": attributes,
+        "severity": float(vlm_result.get("severity", 0.0)),
+        "vlm_agreement": float(vlm_result.get("vlm_agreement", 0.0)),
+        "oracle_features": oracle_attrs.get("_features", {}),
+        "dataset_path": meta.get("dataset_path", ""),
+    }
+
 
 def main():
     ap = argparse.ArgumentParser()
