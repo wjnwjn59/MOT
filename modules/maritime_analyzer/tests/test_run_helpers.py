@@ -1,3 +1,5 @@
+import pytest
+
 from modules.maritime_analyzer.run import (
     shard_sequences, plan_gpu_groups, build_worker_commands, build_record,
 )
@@ -20,8 +22,18 @@ def test_build_worker_commands_sets_visible_devices():
     assert len(cmds) == 2
     env0, argv0 = cmds[0]
     assert env0["CUDA_VISIBLE_DEVICES"] == "0,1"
-    assert "--worker" in argv0 and "--shard-index" in argv0
-    assert "0" in argv0 and "Qwen/Qwen3.5-35B-A3B" in argv0
+    assert "--worker" in argv0
+    # targeted flag-value checks (robust to flag reordering)
+    assert argv0[argv0.index("--shard-index") + 1] == "0"
+    assert argv0[argv0.index("--num-shards") + 1] == "2"
+    assert argv0[argv0.index("--model") + 1] == "Qwen/Qwen3.5-35B-A3B"
+    assert cmds[1][0]["CUDA_VISIBLE_DEVICES"] == "2,3"
+
+
+def test_build_worker_commands_rejects_too_many_shards():
+    with pytest.raises(ValueError):
+        build_worker_commands(num_shards=4, gpu_groups=[[0, 1], [2, 3]], dataset="/d",
+                              out_dir="data", model="m", tp=2, seed=42)
 
 
 def test_build_record_shape():

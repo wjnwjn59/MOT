@@ -167,6 +167,13 @@ def plan_gpu_groups(gpus, tp):
 
 
 def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, seed):
+    # One worker per shard; each must map to a GPU replica. More shards than
+    # replicas would silently leave shards unprocessed while workers still
+    # believe there are `num_shards` shards -> guard against silent data loss.
+    if num_shards > len(gpu_groups):
+        raise ValueError(
+            f"num_shards ({num_shards}) exceeds available GPU replicas ({len(gpu_groups)}); "
+            f"every shard needs a replica or it is never processed")
     cmds = []
     for shard_index, group in enumerate(gpu_groups[:num_shards]):
         env = dict(os.environ)
@@ -175,9 +182,9 @@ def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, s
                 "--worker",
                 "--shard-index", str(shard_index),
                 "--num-shards", str(num_shards),
-                "--dataset", dataset,
-                "--out-dir", out_dir,
-                "--model", model,
+                "--dataset", str(dataset),
+                "--out-dir", str(out_dir),
+                "--model", str(model),
                 "--tp", str(tp),
                 "--seed", str(seed)]
         cmds.append((env, argv))
