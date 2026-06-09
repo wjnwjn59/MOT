@@ -9,8 +9,7 @@ from typing import Dict, List, Tuple, Set
 from PIL import Image
 from tqdm import tqdm
 
-from modules.maritime_analyzer.deterministic_utils import analyze_pair
-from modules.maritime_analyzer.vlm_analyzer import VLMAnalyzer, VLMConfig
+from modules.maritime_analyzer.oracles import compute_oracle_attributes
 from modules.maritime_analyzer.taxonomy import oracle_attributes, vlm_attributes, SCHEMA_VERSION
 
 CLASSES = [
@@ -79,80 +78,6 @@ def ensure_template_crop(template_img_path: Path, template_bbox, out_dir: Path) 
     cropT.save(crop_path)
     return crop_path
 
-def process_sequence_streaming(
-    seq_dir: Path,
-    vlm: VLMAnalyzer,
-    seq_out_dir: Path,
-    meta: Dict,
-) -> None:
-    frames = sorted([p for p in seq_dir.glob('*.jpg')])
-    gt_file = seq_dir / 'groundtruth.txt'
-    if not gt_file.exists():
-        raise FileNotFoundError(f"Missing groundtruth.txt in {seq_dir}")
-    gts = read_groundtruth_txt(gt_file)
-    assert len(gts) == len(frames), f"GT/frames mismatch in {seq_dir}"
-
-    seq_out_dir.mkdir(parents=True, exist_ok=True)
-    seq_jsonl = seq_out_dir / f"{seq_dir.name}.jsonl"
-
-    template_img = frames[0]
-    template_bbox = gts[0]
-    template_crop_path = ensure_template_crop(template_img, template_bbox, seq_out_dir)
-
-    processed_ids = parse_processed_frame_ids(seq_jsonl)
-
-    iterable = list(enumerate(zip(frames, gts), start=1))
-    pbar = tqdm(iterable, desc=f"{seq_dir.name}", unit="frame")
-    for frame_id, (frame_path, bbox) in pbar:
-        if frame_id in processed_ids:
-            pbar.set_postfix_str(f"skip {frame_id}")
-            continue
-
-        det = analyze_pair(template_img, frame_path, template_bbox, bbox)
-        vlm_flags = vlm.classify(str(template_crop_path), str(frame_path), bbox)
-
-        # Build per-class combined (flag + confidence)
-        def pack(name: str):
-            return {
-                "flag": int(vlm_flags.get(name, 0)),
-                "conf": float(vlm_flags.get("vlm_scores", {}).get(name, 0.0)),
-            }
-
-        vlm_response = {
-            "motion_blur": pack("motion_blur"),
-            "illu_change": pack("illu_change"),
-            "variance_appear": pack("variance_appear"),
-            "partial_visibility": pack("partial_visibility"),
-            "background_clutter": pack("background_clutter"),
-            "occlusion": pack("occlusion"),
-            "raw_confidence": vlm_flags.get("raw_confidence", 0.0),
-        }
-
-        record = {
-            "dataset_path": meta["dataset_path"],
-            "processing_time": datetime.utcnow().isoformat(),
-            "model_name": meta["model_name"],
-            "classes": meta["classes"],
-            "sequence_name": seq_dir.name,
-            "total_frames": len(frames),
-            "template_bbox": list(map(float, template_bbox)),
-            "frame_id": frame_id,
-            "frame_file": frame_path.name,
-            "cv_response": {
-                "scale_variation": det.scale_variation,
-                "low_res": det.low_res,
-                "low_contrast": det.low_contrast,
-            },
-            "vlm_response": vlm_response,
-            "ground_truth_bbox": list(map(float, bbox)),
-        }
-
-        with open(seq_jsonl, 'a') as f:
-            f.write(json.dumps(record))
-            f.write('\n')
-
-        pbar.set_postfix_str(f"done {frame_id}")
-
 def shard_sequences(seq_names, num_shards):
     num_shards = max(1, int(num_shards))
     shards = [[] for _ in range(num_shards)]
@@ -213,64 +138,76 @@ def build_record(seq_name, frame_id, frame_file, template_bbox, gt_bbox,
     }
 
 
+def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta):
+    from PIL import Image
+    frames = sorted([p for p in seq_dir.glob('*.jpg')])
+    gts = read_groundtruth_txt(seq_dir / 'groundtruth.txt')
+    assert len(gts) == len(frames), f"GT/frames mismatch in {seq_dir}"
+    seq_out_dir.mkdir(parents=True, exist_ok=True)
+    seq_jsonl = seq_out_dir / f"{seq_dir.name}.jsonl"
+    template_img, template_bbox = frames[0], gts[0]
+    template_crop_path = ensure_template_crop(template_img, template_bbox, seq_out_dir)
+    processed = parse_processed_frame_ids(seq_jsonl)
+
+    for frame_id, (frame_path, bbox) in enumerate(zip(frames, gts), start=1):
+        if frame_id in processed:
+            continue
+        frame_pil = Image.open(frame_path).convert('RGB')
+        oracle = compute_oracle_attributes(
+            Image.open(template_img).convert('RGB'), frame_pil,
+            template_bbox, bbox, frame_pil.size)
+        vlm_result = vlm.classify_soft(str(template_crop_path), str(frame_path), bbox)
+        rec = build_record(seq_dir.name, frame_id, frame_path.name,
+                           template_bbox, bbox, oracle, vlm_result, meta)
+        with open(seq_jsonl, 'a') as f:
+            f.write(json.dumps(rec) + '\n')
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--dataset', required=True, help='Path to MVTD split')
-    ap.add_argument('--out-dir', default='data', help='Directory to store per-sequence .jsonl files')
-    ap.add_argument('--model', default='unsloth/Qwen2-VL-7B-Instruct')
-    ap.add_argument('--batch-size', type=int, default=1)
-    ap.add_argument('--resume-file', default=None,
-                    help='Optional path to a text file that tracks fully processed sequence names. '
-                         'Default: <out-dir>/<split>_processed.txt')
+    ap.add_argument('--dataset', required=True)
+    ap.add_argument('--out-dir', default='data')
+    ap.add_argument('--model', default='Qwen/Qwen3.5-35B-A3B')
+    ap.add_argument('--gpus', default='0', help='comma list, e.g. 0,1,2,3 (orchestrator mode)')
+    ap.add_argument('--tp', type=int, default=1, help='tensor-parallel size per replica')
+    ap.add_argument('--seed', type=int, default=42)
+    ap.add_argument('--worker', action='store_true', help='internal: run one shard')
+    ap.add_argument('--shard-index', type=int, default=0)
+    ap.add_argument('--num-shards', type=int, default=1)
     args = ap.parse_args()
 
     dataset_path = Path(args.dataset)
-    sequences = [p for p in dataset_path.iterdir() if p.is_dir() and (p / 'groundtruth.txt').exists()]
-    sequences.sort()
-
+    sequences = sorted([p for p in dataset_path.iterdir()
+                        if p.is_dir() and (p / 'groundtruth.txt').exists()])
     split_name = dataset_path.name
     out_root = Path(args.out_dir) / f"{split_name}_maritime_env_clf_annts"
     out_root.mkdir(parents=True, exist_ok=True)
+    meta = {"dataset_path": str(dataset_path), "model_name": args.model, "classes": CLASSES}
 
-    resume_path = Path(args.resume_file) if args.resume_file else (Path(args.out_dir) / f"{split_name}_processed.txt")
-    processed_sequences: set[str] = set()
-    if resume_path.exists():
-        with open(resume_path, 'r') as f:
-            processed_sequences = {line.strip() for line in f if line.strip()}
-    else:
-        resume_path.parent.mkdir(parents=True, exist_ok=True)
+    if args.worker:
+        from modules.maritime_analyzer.vlm_analyzer import VLMAnalyzer, VLMConfig
+        seq_names = [p.name for p in sequences]
+        my_seqs = shard_sequences(seq_names, args.num_shards)[args.shard_index]
+        vlm = VLMAnalyzer(VLMConfig(model_name=args.model))
+        for name in my_seqs:
+            seq = dataset_path / name
+            try:
+                _process_one_sequence_v2(seq, vlm, out_root / name, meta)
+            except Exception as e:
+                print(f"  !! error processing {name}: {e}")
+        return
 
-    vlm = VLMAnalyzer(VLMConfig(model_name=args.model))
-
-    meta = {
-        "dataset_path": str(dataset_path),
-        "model_name": args.model,
-        "classes": CLASSES,
-    }
-
-    total = len(sequences)
-    for i, seq in enumerate(sequences, start=1):
-        print(f"[{i}/{total}] Checking {seq.name} ...")
-        if seq.name in processed_sequences:
-            print("  → skip sequence (marked complete in resume file)")
-            continue
-
-        seq_dir_out = out_root / seq.name
-        seq_dir_out.mkdir(parents=True, exist_ok=True)
-
-        print(f"[{i}/{total}] Processing {seq.name} ...")
-        try:
-            process_sequence_streaming(seq, vlm, seq_dir_out, meta)
-        except Exception as e:
-            print(f"  !! error processing {seq.name}: {e}")
-            continue
-
-        with open(resume_path, 'a') as rf:
-            rf.write(seq.name + '\n')
-        print(f"  → sequence complete: {seq.name}")
-
-    print(f"All annotations saved under: {out_root}")
-    print(f"Resume file: {resume_path}")
+    # Orchestrator: split GPUs into replicas (TP groups), launch one worker per replica
+    import subprocess
+    gpus = [int(g) for g in args.gpus.split(',') if g != '']
+    groups = plan_gpu_groups(gpus, args.tp)
+    num_shards = len(groups)
+    cmds = build_worker_commands(num_shards, groups, args.dataset, args.out_dir,
+                                 args.model, args.tp, args.seed)
+    procs = [subprocess.Popen(argv, env=env) for env, argv in cmds]
+    for p in procs:
+        p.wait()
+    print(f"All workers finished. Annotations under: {out_root}")
 
 if __name__ == '__main__':
     main()
