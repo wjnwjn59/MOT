@@ -1,10 +1,10 @@
 from __future__ import annotations
 import json
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional, List
+import numpy as np
 import torch
 from PIL import Image, ImageDraw
-from vllm import LLM, SamplingParams
 from transformers import AutoTokenizer
 
 # ---- Allowed single-label classes predicted by the VLM ----
@@ -48,6 +48,41 @@ _SINGLE_LABEL_INSTR = (
     "The confidences must be in [0,1] and sum approximately to 1.0."
 )
 
+def parse_vlm_json(raw_text: str, attr_names: List[str]) -> Optional[Dict[str, float]]:
+    """Extract the JSON object from a raw VLM string and clamp each value to [0,1]."""
+    try:
+        s = raw_text.find('{'); e = raw_text.rfind('}')
+        if s == -1 or e == -1 or s >= e:
+            return None
+        data = json.loads(raw_text[s:e + 1])
+    except Exception:
+        return None
+    out: Dict[str, float] = {}
+    for k in list(attr_names) + ["severity"]:
+        v = data.get(k, 0.0)
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            v = 0.0
+        out[k] = min(1.0, max(0.0, v))
+    return out
+
+
+def aggregate_passes(parsed_list: List[Optional[Dict[str, float]]], attr_names: List[str]) -> Dict:
+    """Average parsed passes per attribute; agreement = 1 - 2*mean(std) over attributes, in [0,1]."""
+    keys = list(attr_names) + ["severity"]
+    valid = [p for p in parsed_list if p is not None]
+    if not valid:
+        return {**{k: 0.0 for k in keys}, "vlm_agreement": 0.0}
+    means = {k: float(np.mean([p[k] for p in valid])) for k in keys}
+    if len(valid) > 1:
+        stds = [float(np.std([p[k] for p in valid])) for k in attr_names]
+        agreement = float(max(0.0, 1.0 - 2.0 * float(np.mean(stds))))
+    else:
+        agreement = 1.0
+    return {**means, "vlm_agreement": agreement}
+
+
 @dataclass
 class VLMConfig:
     model_name: str = "unsloth/Qwen2-VL-7B-Instruct"  # local path or hub id
@@ -60,8 +95,9 @@ class VLMConfig:
 
 class VLMAnalyzer:
     def __init__(self, config: VLMConfig = VLMConfig()):
+        from vllm import LLM, SamplingParams
         self.config = config
-        
+
         # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, trust_remote_code=True)
         
@@ -193,4 +229,27 @@ class VLMAnalyzer:
 
         # No longer return vlm_top
         return {**flags, "vlm_scores": vlm_scores}
+
+    def classify_soft(self, template_crop_path: str, frame_full_path: str,
+                      frame_bbox) -> Dict:
+        """Soft multi-attribute VLM annotation for the subjective attributes + severity."""
+        from modules.maritime_analyzer.taxonomy import build_vlm_prompt, vlm_attributes
+        frame_img = Image.open(frame_full_path).convert('RGB')
+        frame_boxed = self._draw_bbox_on_image(frame_img, frame_bbox)
+        template_img = Image.open(template_crop_path).convert('RGB')
+
+        attr_names = vlm_attributes()
+        question = build_vlm_prompt()
+        prompt = (f"<|im_start|>system\n{_SYSTEM_PROMPT}<|im_end|>\n"
+                  f"<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>"
+                  f"<|vision_start|><|image_pad|><|vision_end|>"
+                  f"{question}<|im_end|>\n<|im_start|>assistant\n")
+
+        parsed = []
+        for _ in range(self.config.passes):
+            inputs = {"prompt": prompt,
+                      "multi_modal_data": {"image": [template_img, frame_boxed]}}
+            out = self.llm.generate([inputs], sampling_params=self.sampling_params)
+            parsed.append(parse_vlm_json(out[0].outputs[0].text.strip(), attr_names))
+        return aggregate_passes(parsed, attr_names)
 
