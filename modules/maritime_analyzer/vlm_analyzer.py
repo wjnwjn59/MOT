@@ -92,6 +92,7 @@ class VLMConfig:
     passes: int = 3
     verbose: bool = True
     gpu_memory_utilization: float = 0.9
+    seed: int = 42  # per-request sampling seed for reproducible generation
 
 class VLMAnalyzer:
     def __init__(self, config: VLMConfig = VLMConfig()):
@@ -245,11 +246,21 @@ class VLMAnalyzer:
                   f"<|vision_start|><|image_pad|><|vision_end|>"
                   f"{question}<|im_end|>\n<|im_start|>assistant\n")
 
+        from vllm import SamplingParams
         parsed = []
-        for _ in range(self.config.passes):
+        for i in range(self.config.passes):
             inputs = {"prompt": prompt,
                       "multi_modal_data": {"image": [template_img, frame_boxed]}}
-            out = self.llm.generate([inputs], sampling_params=self.sampling_params)
+            # Per-pass seed: reproducible across runs, yet varied across passes so the
+            # self-consistency / agreement signal is preserved.
+            sp = SamplingParams(
+                temperature=self.config.temperature,
+                top_p=0.9,
+                max_tokens=self.config.max_new_tokens,
+                seed=self.config.seed + i,
+                stop_token_ids=self.sampling_params.stop_token_ids,
+            )
+            out = self.llm.generate([inputs], sampling_params=sp)
             parsed.append(parse_vlm_json(out[0].outputs[0].text.strip(), attr_names))
         return aggregate_passes(parsed, attr_names)
 

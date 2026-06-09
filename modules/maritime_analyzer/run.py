@@ -7,7 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Set
 from PIL import Image
-from tqdm import tqdm
 
 from modules.maritime_analyzer.oracles import compute_oracle_attributes
 from modules.maritime_analyzer.taxonomy import oracle_attributes, vlm_attributes, SCHEMA_VERSION
@@ -139,7 +138,6 @@ def build_record(seq_name, frame_id, frame_file, template_bbox, gt_bbox,
 
 
 def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta):
-    from PIL import Image
     frames = sorted([p for p in seq_dir.glob('*.jpg')])
     gts = read_groundtruth_txt(seq_dir / 'groundtruth.txt')
     assert len(gts) == len(frames), f"GT/frames mismatch in {seq_dir}"
@@ -185,10 +183,14 @@ def main():
     meta = {"dataset_path": str(dataset_path), "model_name": args.model, "classes": CLASSES}
 
     if args.worker:
+        import random
+        import numpy as np
         from modules.maritime_analyzer.vlm_analyzer import VLMAnalyzer, VLMConfig
+        random.seed(args.seed)
+        np.random.seed(args.seed)
         seq_names = [p.name for p in sequences]
         my_seqs = shard_sequences(seq_names, args.num_shards)[args.shard_index]
-        vlm = VLMAnalyzer(VLMConfig(model_name=args.model))
+        vlm = VLMAnalyzer(VLMConfig(model_name=args.model, seed=args.seed))
         for name in my_seqs:
             seq = dataset_path / name
             try:
@@ -205,8 +207,12 @@ def main():
     cmds = build_worker_commands(num_shards, groups, args.dataset, args.out_dir,
                                  args.model, args.tp, args.seed)
     procs = [subprocess.Popen(argv, env=env) for env, argv in cmds]
-    for p in procs:
-        p.wait()
+    return_codes = [p.wait() for p in procs]
+    failed = [i for i, rc in enumerate(return_codes) if rc != 0]
+    if failed:
+        raise RuntimeError(
+            f"{len(failed)} worker(s) failed (shards {failed}, return codes "
+            f"{[return_codes[i] for i in failed]}); annotations may be incomplete")
     print(f"All workers finished. Annotations under: {out_root}")
 
 if __name__ == '__main__':
