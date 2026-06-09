@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from typing import Dict, List
 
 # source: "oracle" (deterministic) or "vlm" (subjective soft probability)
@@ -20,6 +21,10 @@ ATTRIBUTES: List[Dict] = [
 
 SEVERITY_KEY = "severity"
 SCHEMA_VERSION = 2
+
+# Every subjective (VLM) attribute must define a human-readable description used in the prompt.
+assert all("desc" in a for a in ATTRIBUTES if a["source"] == "vlm"), \
+    "All VLM attributes must define a 'desc'"
 
 
 def attribute_names() -> List[str]:
@@ -43,16 +48,16 @@ def build_vlm_prompt() -> str:
         "You are an expert maritime vision annotator.",
         "Image A is a template crop of a target. Image B is a new frame with the target boxed.",
         "For EACH challenge below, output a probability in [0,1] that it is present for the boxed target in Image B.",
-        "Also output 'severity' in [0,1]: overall how hard the target is to track in this frame.",
+        f"Also output '{SEVERITY_KEY}' in [0,1]: overall how hard the target is to track in this frame.",
         "",
         "Challenges:",
     ]
     for a in _vlm_full():
         lines.append(f"- {a['name']}: {a['desc']}")
+    example = json.dumps({k: 0.0 for k in vlm_attributes() + [SEVERITY_KEY]})
     lines += [
         "",
-        "Return STRICT JSON only: a float for each challenge name and for 'severity'. Example:",
-        '{"occlusion": 0.0, "background_clutter": 0.0, "specular_glare": 0.0, '
-        '"illumination_appearance_change": 0.0, "severity": 0.0}',
+        f"Return STRICT JSON only: a float for each challenge name and for '{SEVERITY_KEY}'. Example:",
+        example,
     ]
     return "\n".join(lines)
