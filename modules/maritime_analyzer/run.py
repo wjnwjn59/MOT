@@ -192,7 +192,8 @@ def main():
         torch.manual_seed(args.seed)
         seq_names = [p.name for p in sequences]
         my_seqs = shard_sequences(seq_names, args.num_shards)[args.shard_index]
-        vlm = VLMAnalyzer(VLMConfig(model_name=args.model, seed=args.seed))
+        vlm = VLMAnalyzer(VLMConfig(model_name=args.model, seed=args.seed,
+                                    tensor_parallel_size=args.tp))
         for name in my_seqs:
             seq = dataset_path / name
             try:

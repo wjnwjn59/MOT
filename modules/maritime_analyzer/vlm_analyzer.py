@@ -65,6 +65,7 @@ class VLMConfig:
     verbose: bool = True
     gpu_memory_utilization: float = 0.9
     seed: int = 42  # per-request sampling seed for reproducible generation
+    tensor_parallel_size: int = 1  # GPUs to shard the model across (set >1 for large models)
 
 
 class VLMAnalyzer:
@@ -78,6 +79,7 @@ class VLMAnalyzer:
         # Initialize vLLM engine
         self.llm = LLM(
             model=config.model_name,
+            tensor_parallel_size=config.tensor_parallel_size,
             gpu_memory_utilization=config.gpu_memory_utilization,
             trust_remote_code=True,
             max_model_len=32768,
