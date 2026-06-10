@@ -178,7 +178,7 @@ def main():
     sequences = sorted([p for p in dataset_path.iterdir()
                         if p.is_dir() and (p / 'groundtruth.txt').exists()])
     split_name = dataset_path.name
-    out_root = Path(args.out_dir) / f"{split_name}_maritime_env_clf_annts"
+    out_root = Path(args.out_dir) / f"{split_name}_maritime_cond_v2"
     out_root.mkdir(parents=True, exist_ok=True)
     meta = {"dataset_path": str(dataset_path), "model_name": args.model, "classes": CLASSES}
 
