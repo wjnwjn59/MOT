@@ -14,9 +14,12 @@ from PIL import Image, ImageDraw
 from transformers import AutoTokenizer
 
 _SOFT_SYSTEM_PROMPT = (
-    "You are an expert maritime vision annotator. Given a template object (Image A) "
-    "and a new frame with the target boxed (Image B), assess ALL of the listed tracking "
-    "challenges simultaneously and rate each one independently. Return STRICT JSON only."
+    "You are an expert annotator for maritime visual object tracking. Given a template image "
+    "of a target object (Image A) and a later frame in which the same target is marked by a "
+    "bounding box (Image B), you assess the visual challenges that affect the target. You "
+    "evaluate every listed challenge independently, report calibrated probabilities in the "
+    "closed interval [0, 1], and respond strictly in the requested JSON format with no "
+    "additional text."
 )
 
 

@@ -29,3 +29,8 @@ def test_prompt_mentions_every_vlm_attribute_and_severity():
         assert name in prompt
     assert "severity" in prompt
     assert "JSON" in prompt
+
+
+def test_prompt_is_ascii_only():
+    # paper-grade prompt: no smart quotes, em-dashes, or other non-ASCII glyphs
+    assert tx.build_vlm_prompt().isascii()

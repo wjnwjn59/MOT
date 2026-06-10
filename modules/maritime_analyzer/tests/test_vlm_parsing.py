@@ -1,4 +1,10 @@
-from modules.maritime_analyzer.vlm_analyzer import parse_vlm_json, aggregate_passes
+from modules.maritime_analyzer.vlm_analyzer import (
+    parse_vlm_json, aggregate_passes, _SOFT_SYSTEM_PROMPT,
+)
+
+
+def test_system_prompt_is_ascii_only():
+    assert _SOFT_SYSTEM_PROMPT.isascii()
 
 ATTRS = ["occlusion", "background_clutter", "specular_glare", "illumination_appearance_change"]
 
