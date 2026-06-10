@@ -57,7 +57,7 @@ def aggregate_passes(parsed_list: List[Optional[Dict[str, float]]], attr_names: 
 
 @dataclass
 class VLMConfig:
-    model_name: str = "Qwen/Qwen3.5-35B-A3B"  # local path or hub id
+    model_name: str = "/media/vli-ws2/ade81ca2-2fce-49cb-a163-e1ee8090540b/thangdd_workspace/llm_checkpoints/Qwen_Qwen3-VL-32B-Instruct"  # local path or hub id
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     temperature: float = 0.2
     max_new_tokens: int = 128

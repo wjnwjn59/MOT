@@ -165,7 +165,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dataset', required=True)
     ap.add_argument('--out-dir', default='data')
-    ap.add_argument('--model', default='Qwen/Qwen3.5-35B-A3B')
+    ap.add_argument('--model', default='/media/vli-ws2/ade81ca2-2fce-49cb-a163-e1ee8090540b/thangdd_workspace/llm_checkpoints/Qwen_Qwen3-VL-32B-Instruct')
     ap.add_argument('--gpus', default='0', help='comma list, e.g. 0,1,2,3 (orchestrator mode)')
     ap.add_argument('--tp', type=int, default=1, help='tensor-parallel size per replica')
     ap.add_argument('--seed', type=int, default=42)
