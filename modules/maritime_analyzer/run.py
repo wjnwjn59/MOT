@@ -90,7 +90,7 @@ def plan_gpu_groups(gpus, tp):
     return [list(gpus[i:i + tp]) for i in range(0, len(gpus), tp)]
 
 
-def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, seed):
+def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, seed, max_frames=0):
     # One worker per shard; each must map to a GPU replica. More shards than
     # replicas would silently leave shards unprocessed while workers still
     # believe there are `num_shards` shards -> guard against silent data loss.
@@ -110,7 +110,8 @@ def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, s
                 "--out-dir", str(out_dir),
                 "--model", str(model),
                 "--tp", str(tp),
-                "--seed", str(seed)]
+                "--seed", str(seed),
+                "--max-frames", str(max_frames)]
         cmds.append((env, argv))
     return cmds
 
@@ -137,7 +138,7 @@ def build_record(seq_name, frame_id, frame_file, template_bbox, gt_bbox,
     }
 
 
-def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta):
+def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta, max_frames=0):
     frames = sorted([p for p in seq_dir.glob('*.jpg')])
     gts = read_groundtruth_txt(seq_dir / 'groundtruth.txt')
     assert len(gts) == len(frames), f"GT/frames mismatch in {seq_dir}"
@@ -147,7 +148,10 @@ def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta):
     template_crop_path = ensure_template_crop(template_img, template_bbox, seq_out_dir)
     processed = parse_processed_frame_ids(seq_jsonl)
 
-    for frame_id, (frame_path, bbox) in enumerate(zip(frames, gts), start=1):
+    pairs = list(zip(frames, gts))
+    if max_frames and max_frames > 0:
+        pairs = pairs[:max_frames]
+    for frame_id, (frame_path, bbox) in enumerate(pairs, start=1):
         if frame_id in processed:
             continue
         frame_pil = Image.open(frame_path).convert('RGB')
@@ -172,6 +176,8 @@ def main():
     ap.add_argument('--worker', action='store_true', help='internal: run one shard')
     ap.add_argument('--shard-index', type=int, default=0)
     ap.add_argument('--num-shards', type=int, default=1)
+    ap.add_argument('--max-frames', type=int, default=0,
+                    help='limit frames per sequence (0 = all); useful for smoke tests')
     args = ap.parse_args()
 
     dataset_path = Path(args.dataset)
@@ -197,7 +203,7 @@ def main():
         for name in my_seqs:
             seq = dataset_path / name
             try:
-                _process_one_sequence_v2(seq, vlm, out_root / name, meta)
+                _process_one_sequence_v2(seq, vlm, out_root / name, meta, max_frames=args.max_frames)
             except Exception as e:
                 print(f"  !! error processing {name}: {e}")
         return
@@ -208,7 +214,7 @@ def main():
     groups = plan_gpu_groups(gpus, args.tp)
     num_shards = len(groups)
     cmds = build_worker_commands(num_shards, groups, args.dataset, args.out_dir,
-                                 args.model, args.tp, args.seed)
+                                 args.model, args.tp, args.seed, max_frames=args.max_frames)
     procs = [subprocess.Popen(argv, env=env) for env, argv in cmds]
     return_codes = [p.wait() for p in procs]
     failed = [i for i, rc in enumerate(return_codes) if rc != 0]
