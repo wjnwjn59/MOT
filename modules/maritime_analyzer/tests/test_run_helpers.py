@@ -22,6 +22,7 @@ def test_build_worker_commands_sets_visible_devices():
     assert len(cmds) == 2
     env0, argv0 = cmds[0]
     assert env0["CUDA_VISIBLE_DEVICES"] == "0,1"
+    assert env0["VLLM_WORKER_MULTIPROC_METHOD"] == "spawn"
     assert "--worker" in argv0
     # targeted flag-value checks (robust to flag reordering)
     assert argv0[argv0.index("--shard-index") + 1] == "0"

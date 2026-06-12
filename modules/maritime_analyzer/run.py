@@ -102,6 +102,9 @@ def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, s
     for shard_index, group in enumerate(gpu_groups[:num_shards]):
         env = dict(os.environ)
         env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in group)
+        # tensor-parallel workers must be spawned, not forked, or vLLM hits
+        # "Cannot re-initialize CUDA in forked subprocess".
+        env.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
         argv = [sys.executable, "-m", "modules.maritime_analyzer.run",
                 "--worker",
                 "--shard-index", str(shard_index),
