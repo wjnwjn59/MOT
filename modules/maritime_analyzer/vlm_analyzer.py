@@ -69,6 +69,8 @@ class VLMConfig:
     gpu_memory_utilization: float = 0.9
     seed: int = 42  # per-request sampling seed for reproducible generation
     tensor_parallel_size: int = 1  # GPUs to shard the model across (set >1 for large models)
+    enforce_eager: bool = False  # disable CUDA graphs / torch.compile (robustness over speed)
+    disable_custom_all_reduce: bool = False  # fall back to NCCL; fixes some multi-GPU TP hangs
 
 
 class VLMAnalyzer:
@@ -88,6 +90,8 @@ class VLMAnalyzer:
             max_model_len=32768,
             max_num_seqs=1,  # Single sequence processing for this use case
             dtype="auto",
+            enforce_eager=config.enforce_eager,
+            disable_custom_all_reduce=config.disable_custom_all_reduce,
         )
 
         # Sampling parameters (used as a template; classify_soft overrides the seed per pass)
