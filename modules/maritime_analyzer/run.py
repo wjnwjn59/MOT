@@ -91,7 +91,7 @@ def plan_gpu_groups(gpus, tp):
 
 
 def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, seed, max_frames=0,
-                          enforce_eager=False, disable_custom_all_reduce=False):
+                          enforce_eager=False, disable_custom_all_reduce=False, passes=3, stride=1):
     # One worker per shard; each must map to a GPU replica. More shards than
     # replicas would silently leave shards unprocessed while workers still
     # believe there are `num_shards` shards -> guard against silent data loss.
@@ -115,7 +115,9 @@ def build_worker_commands(num_shards, gpu_groups, dataset, out_dir, model, tp, s
                 "--model", str(model),
                 "--tp", str(tp),
                 "--seed", str(seed),
-                "--max-frames", str(max_frames)]
+                "--max-frames", str(max_frames),
+                "--passes", str(passes),
+                "--stride", str(stride)]
         if enforce_eager:
             argv.append("--enforce-eager")
         if disable_custom_all_reduce:
@@ -146,7 +148,7 @@ def build_record(seq_name, frame_id, frame_file, template_bbox, gt_bbox,
     }
 
 
-def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta, max_frames=0):
+def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta, max_frames=0, stride=1):
     frames = sorted([p for p in seq_dir.glob('*.jpg')])
     gts = read_groundtruth_txt(seq_dir / 'groundtruth.txt')
     assert len(gts) == len(frames), f"GT/frames mismatch in {seq_dir}"
@@ -156,10 +158,13 @@ def _process_one_sequence_v2(seq_dir, vlm, seq_out_dir, meta, max_frames=0):
     template_crop_path = ensure_template_crop(template_img, template_bbox, seq_out_dir)
     processed = parse_processed_frame_ids(seq_jsonl)
 
-    pairs = list(zip(frames, gts))
+    # keep the TRUE 1-based frame_id (so frame_file/resume stay correct), then stride + cap
+    pairs = list(enumerate(zip(frames, gts), start=1))
+    if stride and stride > 1:
+        pairs = pairs[::stride]
     if max_frames and max_frames > 0:
         pairs = pairs[:max_frames]
-    for frame_id, (frame_path, bbox) in enumerate(pairs, start=1):
+    for frame_id, (frame_path, bbox) in pairs:
         if frame_id in processed:
             continue
         frame_pil = Image.open(frame_path).convert('RGB')
@@ -186,6 +191,10 @@ def main():
     ap.add_argument('--num-shards', type=int, default=1)
     ap.add_argument('--max-frames', type=int, default=0,
                     help='limit frames per sequence (0 = all); useful for smoke tests')
+    ap.add_argument('--stride', type=int, default=1,
+                    help='annotate every Nth frame (adjacent frames are near-duplicate)')
+    ap.add_argument('--passes', type=int, default=3,
+                    help='VLM self-consistency passes per frame (lower = faster)')
     ap.add_argument('--enforce-eager', action='store_true',
                     help='disable CUDA graphs/torch.compile (robustness over speed)')
     ap.add_argument('--disable-custom-all-reduce', action='store_true',
@@ -211,13 +220,14 @@ def main():
         seq_names = [p.name for p in sequences]
         my_seqs = shard_sequences(seq_names, args.num_shards)[args.shard_index]
         vlm = VLMAnalyzer(VLMConfig(model_name=args.model, seed=args.seed,
-                                    tensor_parallel_size=args.tp,
+                                    tensor_parallel_size=args.tp, passes=args.passes,
                                     enforce_eager=args.enforce_eager,
                                     disable_custom_all_reduce=args.disable_custom_all_reduce))
         for name in my_seqs:
             seq = dataset_path / name
             try:
-                _process_one_sequence_v2(seq, vlm, out_root / name, meta, max_frames=args.max_frames)
+                _process_one_sequence_v2(seq, vlm, out_root / name, meta,
+                                         max_frames=args.max_frames, stride=args.stride)
             except Exception as e:
                 print(f"  !! error processing {name}: {e}")
         return
@@ -230,7 +240,8 @@ def main():
     cmds = build_worker_commands(num_shards, groups, args.dataset, args.out_dir,
                                  args.model, args.tp, args.seed, max_frames=args.max_frames,
                                  enforce_eager=args.enforce_eager,
-                                 disable_custom_all_reduce=args.disable_custom_all_reduce)
+                                 disable_custom_all_reduce=args.disable_custom_all_reduce,
+                                 passes=args.passes, stride=args.stride)
     procs = [subprocess.Popen(argv, env=env) for env, argv in cmds]
     return_codes = [p.wait() for p in procs]
     failed = [i for i, rc in enumerate(return_codes) if rc != 0]
